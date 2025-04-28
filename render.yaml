@@ -1,25 +1,79 @@
 services:
+  # Main API application
   - type: web
     name: real-service-api
     env: node
+    plan: starter
+    # Automatically deploy on changes to the main branch
+    repo: https://github.com/Real-Service/real-service-api
+    branch: main
     buildCommand: npm ci
     startCommand: node start-production.js
+    healthCheckPath: /healthz
+    # Auto-deploy on changes
     autoDeploy: true
-    healthCheckPath: /api/health
+    # Environment variable group
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
+      - key: PORT
+        value: 10000
       - key: SESSION_SECRET
         generateValue: true
       - key: COOKIE_SECRET
         generateValue: true
-      - key: COOKIE_MAX_AGE
-        value: 604800000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: real-service-db
+          property: connectionString
+      - key: PGHOST
+        fromDatabase:
+          name: real-service-db
+          property: host
+      - key: PGUSER
+        fromDatabase:
+          name: real-service-db
+          property: user
+      - key: PGPASSWORD
+        fromDatabase:
+          name: real-service-db
+          property: password
+      - key: PGDATABASE
+        fromDatabase:
+          name: real-service-db
+          property: database
+      - key: PGPORT
+        fromDatabase:
+          name: real-service-db
+          property: port
       - key: CORS_ORIGIN
-        value: https://real-service-team9-01-teamleader2000.replit.app
+        value: https://real-service-app.onrender.com
       - key: FRONTEND_URL
-        value: https://real-service-team9-01-teamleader2000.replit.app
-      - key: PORT
-        value: 8080
+        value: https://real-service-app.onrender.com
+      - key: VITE_MAPBOX_TOKEN
+        sync: false # Add this manually in the dashboard
+      # Add other environment variables as needed
+    domains:
+      - api.real-service.com
+
+  # Frontend application
+  - type: web
+    name: real-service-frontend
+    env: static
+    plan: starter
+    buildCommand: cd client && npm ci && npm run build
+    staticPublishPath: ./client/dist
+    # Environment variables for the frontend build
+    envVars:
+      - key: VITE_API_URL
+        value: https://real-service-api.onrender.com
+      - key: VITE_MAPBOX_TOKEN
+        sync: false # Add this manually in the dashboard
+    domains:
+      - app.real-service.com
+      - www.real-service.com
+
+# PostgreSQL database
+databases:
+  - name: real-service-db
+    plan: starter

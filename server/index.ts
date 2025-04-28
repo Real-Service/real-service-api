@@ -259,7 +259,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Add health check endpoint before other routes
+  // Add health check endpoints before other routes
+  
+  // Simple health check endpoint for monitoring tools (returns plain text)
+  app.get('/healthz', (req: Request, res: Response) => {
+    res.status(200).send('OK');
+  });
+  
+  // Detailed health check with database connectivity test
   app.get('/health', async (req: Request, res: Response) => {
     try {
       // Simple test query to verify database connectivity using the TCP-safe authDb client
@@ -278,6 +285,7 @@ app.use((req, res, next) => {
         db: 'connected',
         connection: isProduction ? 'TCP/SSL Pool' : 'WebSocket',
         environment: process.env.NODE_ENV || 'development',
+        uptime: process.uptime(),
         timestamp: new Date().toISOString()
       });
     } catch (error) {
@@ -286,6 +294,51 @@ app.use((req, res, next) => {
         status: 'error', 
         db: 'disconnected',
         error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  // API health check endpoint for comprehensive monitoring
+  app.get('/api/health', async (req: Request, res: Response) => {
+    try {
+      // Basic health information
+      const health = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || 'development'
+      };
+
+      // Check database connection
+      try {
+        const isProduction = process.env.NODE_ENV === 'production';
+        
+        if (isProduction) {
+          await authDb.execute(sql`SELECT NOW() as time`);
+        } else {
+          await db.execute(sql`SELECT NOW() as time`);
+        }
+
+        health['database'] = {
+          connected: true,
+          connection_type: isProduction ? 'TCP/SSL Pool' : 'WebSocket',
+        };
+      } catch (dbError) {
+        health['database'] = {
+          connected: false,
+          error: process.env.NODE_ENV === 'production' 
+            ? 'Database connection failed' 
+            : dbError instanceof Error ? dbError.message : String(dbError)
+        };
+      }
+
+      res.status(200).json(health);
+    } catch (error) {
+      console.error('API Health Check Failed:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Health check failed',
         timestamp: new Date().toISOString()
       });
     }
@@ -327,9 +380,9 @@ app.use((req, res, next) => {
     }
   });
 
-  // Always serve on port 5000 to match the Replit workflow configuration
+  // Use process.env.PORT for production or 5000 for development
   // This serves both the API and the client
-  const port = 5000;
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   server.listen({
     port,
     host: "0.0.0.0", // Bind to all network interfaces to ensure it's accessible
