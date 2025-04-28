@@ -7,7 +7,9 @@ require('dotenv').config({ path: '.env.production' });
 
 console.log('Starting Real Service API in production mode...');
 console.log('Environment: ', process.env.NODE_ENV);
-console.log('Port: ', process.env.PORT || 8080);
+// Always set PORT environment variable to 5000 to match workflow configuration
+process.env.PORT = process.env.PORT || '5000';
+console.log('Port: ', process.env.PORT);
 console.log('Database: ', process.env.DATABASE_URL ? 'Connected' : 'Not configured');
 console.log('CORS Origin: ', process.env.CORS_ORIGIN || 'Any');
 
