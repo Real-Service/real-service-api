@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: real-service-api
+    env: node
+    buildCommand: npm ci
+    startCommand: node start-production.js
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_7hyG1JwXWmhm@ep-crimson-dust-a6smdy25.us-west-2.aws.neon.tech/neondb?sslmode=require
+      - key: SESSION_SECRET
+        value: NzZ1YWsdFCuZmI1MWRlNDZljYwZTEyZmJGcuZw1ETFmfCrXPfvJkQHV7fFNhgw==
+      - key: COOKIE_SECRET
+        value: NzTYVMmFSCuZE1lWEZlTDZlMDZjYwEyZmFSuZw1ETFNgWytnhGVjmMnbHMFUd3==
+      - key: COOKIE_MAX_AGE
+        value: 604800000
+      - key: CORS_ORIGIN
+        value: https://real-service-team9-01-teamleader2000.replit.app
+      - key: FRONTEND_URL
+        value: https://real-service-team9-01-teamleader2000.replit.app
+      - key: PORT
+        value: 8080
+      - key: PGDATABASE
+        value: neondb
+      - key: PGHOST
+        value: ep-crimson-dust-a6smdy25.us-west-2.aws.neon.tech
+      - key: PGPORT
+        value: 5432
+      - key: PGUSER
+        value: neondb_owner
+      - key: PGPASSWORD
+        value: npg_7hyG1JwXWmhm
+      - key: VITE_MAPBOX_TOKEN
+        value: pk.eyJ1IjoiZHJuewYzdXlzIjoidCI6MTUiOiJjaXJtNWlkcWIwMDB9LnF5bnhSTVBLMFtYWm1IQ18wbmE
