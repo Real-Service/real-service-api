@@ -1,0 +1,52 @@
+Expand the contractor-side of the Real Service app with the following feature structure:
+
+1. **Contractor Dashboard (Home)**
+   - Show key stats: open bids, active projects, upcoming appointments.
+   - Display job recommendations (based on location, skills, or recent activity).
+
+2. **Find Jobs Page**
+   - Grid/Table/Map/Split views toggle.
+   - Filter by: Job Type, Urgent, Nearby, Budget Range, Timeline.
+   - Sort by: Newest, Highest Bid, Closest, Price.
+   - Each job card includes: bid button, view details, save job, posted time, and poster avatar.
+   - Notification indicator for new jobs since last login.
+
+3. **Sent Bids Page**
+   - List of all bids with status: Pending, Accepted, Rejected.
+   - Ability to withdraw or edit bids.
+   - Option to message the job poster directly.
+
+4. **My Projects Page**
+   - Active Projects: includes progress tracker, invoice upload, mark as complete.
+   - Past Projects: searchable history with ratings/reviews.
+   - Upload files and communicate with job poster via timeline log.
+
+5. **My Quotes Page**
+   - View all drafted and sent quotes.
+   - Convert a quote into a bid or active project.
+   - Quote builder with editable line items and service descriptions.
+
+6. **Calendar Page**
+   - Display scheduled jobs and visits.
+   - Sync with external calendars (Google Calendar, Outlook).
+   - Add availability slots to help automate future job matches.
+
+7. **Invoicing & Payments Module**
+   - Create and send invoices.
+   - Track payment status: Paid, Pending, Overdue.
+   - Export invoices (PDF/CSV).
+   - Integrate payment via Stripe, PayPal, or e-transfer details.
+
+8. **Profile & Business Settings**
+   - Add/edit service categories, experience, licenses, and service area.
+   - Upload business documents (insurance, certifications).
+   - Control availability (days, hours).
+   - Display user ratings and testimonials.
+
+9. **App Settings**
+   - Notification preferences (email, in-app, SMS).
+   - Payment method setup.
+   - Language/regional preferences.
+   - Help & Support: FAQs, contact form, terms of use.
+
+Implement this structure as modular React components using Tailwind CSS for styling. Use state management (e.g., context or Redux) to coordinate interactions between job listings, projects, and calendars. Ensure navigation is intuitive and mobile responsive. Each section should be fully functional or scaffolded with placeholders and stubs for future data hooks.

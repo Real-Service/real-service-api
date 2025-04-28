@@ -1,0 +1,78 @@
+Translation:
+
+Your production test query (your /health or startup query)
+
+Is still hitting NeonServerless/WebSocket instead of using the correct TCP/SSL pg driver.
+
+And because Replit blocks WebSocket/console requests in production deployments → it fails.
+
+🎯 So what this confirms:
+✅ Your Express app is alive.
+✅ Your session store is (almost) working.
+✅ BUT: Your production database connection is still incorrectly created with NeonPool instead of pg Pool.
+
+🔥 100% Solution (same as I hinted above):
+You must create your database client this way:
+
+typescript
+Copy
+Edit
+import { Pool as PgPool } from 'pg';
+import { NeonPool } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/...';
+import { neonConfig } from '@neondatabase/serverless';
+import ws from 'ws'; // needed for dev mode
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+let db;
+
+if (isProduction) {
+  const pgPool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+
+  console.log('Using production Postgres pool for app DB');
+
+  db = drizzle(pgPool, { schema });
+} else {
+  neonConfig.webSocketConstructor = ws;
+
+  const neonPool = new NeonPool({
+    connectionString: process.env.DATABASE_URL,
+  });
+
+  console.log('Using development Neon serverless pool');
+
+  db = drizzle(neonPool, { schema });
+}
+
+export { db };
+Notice:
+
+✅ pgPool (real TCP SSL connection) in production
+
+✅ neonPool (WebSocket connection) only in dev
+
+✅ Your db (drizzle instance) is built based on correct pool
+
+✅ Then everywhere in your app, you import { db } and never directly call NeonPool outside dev
+
+⚡ Quick Visual:
+
+Environment	Database Client	Why
+Production (NODE_ENV = production)	pg.Pool	Needed for Replit Production
+Development (local/dev)	NeonPool (serverless)	Fast WebSocket
+🚨 You are THIS close now
+You have already:
+
+🔥 Express running
+
+🔥 Sessions loading
+
+🔥 App building correctly
+
+🚨 Only database client for your app is wrong on production!
+
+Once you switch to pg in production, all login, queries, signup, whatever, will start working.

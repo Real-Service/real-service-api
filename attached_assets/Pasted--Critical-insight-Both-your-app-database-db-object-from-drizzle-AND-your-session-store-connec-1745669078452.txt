@@ -1,0 +1,79 @@
+🚨 Critical insight:
+Both your app database (db object from drizzle)
+
+AND your session store (connect-pg-simple)
+are not correctly connecting using pg.Pool (TCP SSL) in production mode.
+
+🎯 What must happen to fix this completely:
+✅ 1. You must switch db (drizzle) to use pg.Pool in production.
+
+✅ 2. You must install connect-pg-simple-esm (or fix your session store to use pg.Pool) properly.
+
+✅ 3. You must not use Neon serverless / NeonPool in production.
+
+✅ Let's rebuild it step-by-step, clean.
+Here’s exactly what your code setup should look like:
+
+📂 database.ts (or your database setup file)
+typescript
+Copy
+Edit
+import { Pool as PgPool } from 'pg';
+import { NeonPool, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/...'; // adjust your path
+import ws from 'ws';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+let pool;
+
+if (isProduction) {
+  pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+  console.log('✅ Using production pg Pool');
+} else {
+  neonConfig.webSocketConstructor = ws;
+  pool = new NeonPool({
+    connectionString: process.env.DATABASE_URL,
+  });
+  console.log('✅ Using development Neon serverless');
+}
+
+const db = drizzle(pool, { schema });
+
+export { db, pool };
+📂 server.ts (or wherever you start Express)
+typescript
+Copy
+Edit
+import express from 'express';
+import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple-esm'; // important: esm version!
+import { pool as sessionPool } from './database'; // re-use the correct pg pool!
+
+const app = express();
+const isProduction = process.env.NODE_ENV === 'production';
+
+const PgSession = connectPgSimple(session);
+
+app.set('trust proxy', 1); // very important for Replit/HTTPS
+
+app.use(session({
+  store: new PgSession({
+    pool: sessionPool,
+    tableName: 'session',
+  }),
+  secret: process.env.SESSION_SECRET || 'fallback',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: isProduction,
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
+  },
+}));
+
+// Your normal routes after this

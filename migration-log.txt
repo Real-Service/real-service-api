@@ -1,0 +1,429 @@
+[2025-04-27T18:50:14.612Z] Starting database migration
+[2025-04-27T18:50:14.863Z] Found 27 tables in source database
+[2025-04-27T18:50:15.351Z] Found 4 tables in target database
+[2025-04-27T18:50:15.441Z] Creating table: bids
+[2025-04-27T18:50:15.508Z] Query error: syntax error at or near "USER"
+[2025-04-27T18:50:15.508Z] Failed query: CREATE TABLE IF NOT EXISTS "bids" (
+"id" integer NOT NULL DEFAULT nextval('bids_id_seq'::regclass),
+"jobId" integer NOT NULL,
+"contractorId" integer NOT NULL,
+"amount" double precision NOT NULL,
+"proposal" text NOT NULL,
+"timeEstimate" text NULL,
+"proposedStartDate" timestamp without time zone NULL,
+"status" USER-DEFINED NOT NULL DEFAULT 'pending'::bid_status,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:15.508Z] Error creating table bids: syntax error at or near "USER"
+[2025-04-27T18:50:15.544Z] Creating table: chat_participants
+[2025-04-27T18:50:16.087Z] Query error: relation "chat_participants_id_seq" does not exist
+[2025-04-27T18:50:16.087Z] Failed query: CREATE TABLE IF NOT EXISTS "chat_participants" (
+"id" integer NOT NULL DEFAULT nextval('chat_participants_id_seq'::regclass),
+"chatRoomId" integer NOT NULL,
+"userId" integer NOT NULL,
+"lastRead" timestamp without time zone NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:16.087Z] Error creating table chat_participants: relation "chat_participants_id_seq" does not exist
+[2025-04-27T18:50:16.125Z] Creating table: chat_rooms
+[2025-04-27T18:50:16.606Z] Query error: relation "chat_rooms_id_seq" does not exist
+[2025-04-27T18:50:16.606Z] Failed query: CREATE TABLE IF NOT EXISTS "chat_rooms" (
+"id" integer NOT NULL DEFAULT nextval('chat_rooms_id_seq'::regclass),
+"jobId" integer NULL,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:16.606Z] Error creating table chat_rooms: relation "chat_rooms_id_seq" does not exist
+[2025-04-27T18:50:16.646Z] Creating table: contractor_profiles
+[2025-04-27T18:50:17.131Z] Query error: relation "contractor_profiles_id_seq" does not exist
+[2025-04-27T18:50:17.131Z] Failed query: CREATE TABLE IF NOT EXISTS "contractor_profiles" (
+"id" integer NOT NULL DEFAULT nextval('contractor_profiles_id_seq'::regclass),
+"userId" integer NOT NULL,
+"bio" text NULL,
+"skills" json NULL DEFAULT '[]'::json,
+"serviceArea" json NULL DEFAULT '{"latitude":0,"longitude":0}'::json,
+"walletBalance" double precision NOT NULL DEFAULT 0,
+"averageRating" double precision NULL,
+"totalRatings" integer NOT NULL DEFAULT 0,
+"background" text NULL,
+"availability" text NULL,
+"city" text NULL,
+"state" text NULL,
+"serviceRadius" integer NULL DEFAULT 25,
+"serviceZipCodes" json NULL DEFAULT '[]'::json,
+"trades" json NULL DEFAULT '[]'::json,
+"experience" text NULL,
+"hourlyRate" double precision NULL,
+"hasLiabilityInsurance" boolean NULL DEFAULT false,
+"insuranceCoverage" text NULL,
+"paymentMethods" json NULL DEFAULT '[]'::json,
+"warranty" text NULL,
+"languages" json NULL DEFAULT '[]'::json,
+"portfolio" json NULL DEFAULT '[]'::json,
+"serviceAreas" json NULL DEFAULT '[]'::json,
+"businessName" text NULL,
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:17.132Z] Error creating table contractor_profiles: relation "contractor_profiles_id_seq" does not exist
+[2025-04-27T18:50:17.167Z] Creating table: invoice_line_items
+[2025-04-27T18:50:17.628Z] Query error: relation "invoice_line_items_id_seq" does not exist
+[2025-04-27T18:50:17.628Z] Failed query: CREATE TABLE IF NOT EXISTS "invoice_line_items" (
+"id" integer NOT NULL DEFAULT nextval('invoice_line_items_id_seq'::regclass),
+"invoiceId" integer NOT NULL,
+"description" text NOT NULL,
+"quantity" double precision NOT NULL DEFAULT 1,
+"unitPrice" double precision NOT NULL,
+"total" double precision NOT NULL,
+"sortOrder" integer NOT NULL DEFAULT 0,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:17.629Z] Error creating table invoice_line_items: relation "invoice_line_items_id_seq" does not exist
+[2025-04-27T18:50:17.666Z] Creating table: invoices
+[2025-04-27T18:50:18.136Z] Query error: syntax error at or near "USER"
+[2025-04-27T18:50:18.137Z] Failed query: CREATE TABLE IF NOT EXISTS "invoices" (
+"id" integer NOT NULL DEFAULT nextval('invoices_id_seq'::regclass),
+"jobId" integer NOT NULL,
+"quoteId" integer NULL,
+"contractorId" integer NOT NULL,
+"landlordId" integer NOT NULL,
+"invoiceNumber" text NOT NULL,
+"title" text NOT NULL,
+"status" USER-DEFINED NOT NULL DEFAULT 'draft'::invoice_status,
+"subtotal" double precision NOT NULL,
+"taxRate" double precision NULL DEFAULT 0,
+"taxAmount" double precision NULL DEFAULT 0,
+"total" double precision NOT NULL,
+"amountPaid" double precision NULL DEFAULT 0,
+"notes" text NULL,
+"terms" text NULL,
+"dueDate" timestamp without time zone NULL,
+"issuedDate" timestamp without time zone NOT NULL DEFAULT now(),
+"paidDate" timestamp without time zone NULL,
+"paymentMethod" USER-DEFINED NULL,
+"paymentDetails" text NULL,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:18.137Z] Error creating table invoices: syntax error at or near "USER"
+[2025-04-27T18:50:18.177Z] Creating table: job_dependencies
+[2025-04-27T18:50:18.642Z] Query error: syntax error at or near "USER"
+[2025-04-27T18:50:18.642Z] Failed query: CREATE TABLE IF NOT EXISTS "job_dependencies" (
+"id" integer NOT NULL DEFAULT nextval('job_dependencies_id_seq'::regclass),
+"jobId" integer NOT NULL,
+"dependsOnJobId" integer NOT NULL,
+"dependencyType" USER-DEFINED NOT NULL DEFAULT 'sequential'::job_dependency_type,
+"delayDays" integer NULL DEFAULT 0,
+"isRequired" boolean NULL DEFAULT true,
+"note" text NULL,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:18.642Z] Error creating table job_dependencies: syntax error at or near "USER"
+[2025-04-27T18:50:18.678Z] Creating table: job_schedules
+[2025-04-27T18:50:19.136Z] Query error: syntax error at or near "USER"
+[2025-04-27T18:50:19.136Z] Failed query: CREATE TABLE IF NOT EXISTS "job_schedules" (
+"id" integer NOT NULL DEFAULT nextval('job_schedules_id_seq'::regclass),
+"jobId" integer NOT NULL,
+"startDate" timestamp without time zone NOT NULL,
+"endDate" timestamp without time zone NOT NULL,
+"startTime" text NULL,
+"endTime" text NULL,
+"isAllDay" boolean NULL DEFAULT false,
+"status" USER-DEFINED NOT NULL DEFAULT 'scheduled'::schedule_status,
+"note" text NULL,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:19.137Z] Error creating table job_schedules: syntax error at or near "USER"
+[2025-04-27T18:50:19.171Z] Creating table: job_template_materials
+[2025-04-27T18:50:19.636Z] Query error: relation "job_template_materials_id_seq" does not exist
+[2025-04-27T18:50:19.636Z] Failed query: CREATE TABLE IF NOT EXISTS "job_template_materials" (
+"id" integer NOT NULL DEFAULT nextval('job_template_materials_id_seq'::regclass),
+"templateId" integer NOT NULL,
+"description" text NOT NULL,
+"quantity" double precision NOT NULL DEFAULT 1,
+"unitPrice" double precision NOT NULL,
+"sortOrder" integer NOT NULL DEFAULT 0,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:19.636Z] Error creating table job_template_materials: relation "job_template_materials_id_seq" does not exist
+[2025-04-27T18:50:19.679Z] Creating table: job_template_tasks
+[2025-04-27T18:50:20.140Z] Query error: relation "job_template_tasks_id_seq" does not exist
+[2025-04-27T18:50:20.140Z] Failed query: CREATE TABLE IF NOT EXISTS "job_template_tasks" (
+"id" integer NOT NULL DEFAULT nextval('job_template_tasks_id_seq'::regclass),
+"templateId" integer NOT NULL,
+"description" text NOT NULL,
+"estimatedHours" double precision NOT NULL,
+"sortOrder" integer NOT NULL DEFAULT 0,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:20.141Z] Error creating table job_template_tasks: relation "job_template_tasks_id_seq" does not exist
+[2025-04-27T18:50:20.176Z] Creating table: job_templates
+[2025-04-27T18:50:20.656Z] Query error: relation "job_templates_id_seq" does not exist
+[2025-04-27T18:50:20.656Z] Failed query: CREATE TABLE IF NOT EXISTS "job_templates" (
+"id" integer NOT NULL DEFAULT nextval('job_templates_id_seq'::regclass),
+"contractorId" integer NOT NULL,
+"title" text NOT NULL,
+"description" text NOT NULL,
+"categoryTags" json NULL DEFAULT '[]'::json,
+"estimatedDuration" integer NOT NULL DEFAULT 1,
+"estimatedBudget" double precision NULL,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:20.656Z] Error creating table job_templates: relation "job_templates_id_seq" does not exist
+[2025-04-27T18:50:20.694Z] Creating table: jobs
+[2025-04-27T18:50:21.196Z] Query error: syntax error at or near "USER"
+[2025-04-27T18:50:21.196Z] Failed query: CREATE TABLE IF NOT EXISTS "jobs" (
+"id" integer NOT NULL DEFAULT nextval('jobs_id_seq'::regclass),
+"title" text NOT NULL,
+"description" text NOT NULL,
+"landlordId" integer NOT NULL,
+"status" USER-DEFINED NOT NULL DEFAULT 'draft'::job_status,
+"pricingType" USER-DEFINED NOT NULL DEFAULT 'fixed'::job_pricing_type,
+"budget" double precision NULL,
+"location" json NOT NULL,
+"categoryTags" json NULL DEFAULT '[]'::json,
+"isUrgent" boolean NULL DEFAULT false,
+"deadline" text NULL,
+"images" json NULL DEFAULT '[]'::json,
+"startDate" timestamp without time zone NULL,
+"completionDate" timestamp without time zone NULL,
+"progress" integer NULL DEFAULT 0,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+"contractorId" integer NULL,
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:21.197Z] Error creating table jobs: syntax error at or near "USER"
+[2025-04-27T18:50:21.236Z] Creating table: landlord_profiles
+[2025-04-27T18:50:21.695Z] Query error: relation "landlord_profiles_id_seq" does not exist
+[2025-04-27T18:50:21.695Z] Failed query: CREATE TABLE IF NOT EXISTS "landlord_profiles" (
+"id" integer NOT NULL DEFAULT nextval('landlord_profiles_id_seq'::regclass),
+"userId" integer NOT NULL,
+"bio" text NULL,
+"walletBalance" double precision NOT NULL DEFAULT 0,
+"averageRating" double precision NULL,
+"totalRatings" integer NOT NULL DEFAULT 0,
+"properties" json NULL DEFAULT '[]'::json,
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:21.695Z] Error creating table landlord_profiles: relation "landlord_profiles_id_seq" does not exist
+[2025-04-27T18:50:21.731Z] Creating table: messages
+[2025-04-27T18:50:22.205Z] Query error: syntax error at or near "USER"
+[2025-04-27T18:50:22.206Z] Failed query: CREATE TABLE IF NOT EXISTS "messages" (
+"id" integer NOT NULL DEFAULT nextval('messages_id_seq'::regclass),
+"chatRoomId" integer NOT NULL,
+"senderId" integer NOT NULL,
+"content" text NOT NULL,
+"type" USER-DEFINED NOT NULL DEFAULT 'text'::message_type,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:22.206Z] Error creating table messages: syntax error at or near "USER"
+[2025-04-27T18:50:22.250Z] Creating table: neon_test
+[2025-04-27T18:50:22.738Z] Query error: relation "neon_test_id_seq" does not exist
+[2025-04-27T18:50:22.738Z] Failed query: CREATE TABLE IF NOT EXISTS "neon_test" (
+"id" integer NOT NULL DEFAULT nextval('neon_test_id_seq'::regclass),
+"test_data" text NULL,
+"created_at" timestamp without time zone NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:22.738Z] Error creating table neon_test: relation "neon_test_id_seq" does not exist
+[2025-04-27T18:50:22.773Z] Creating table: password_reset_tokens
+[2025-04-27T18:50:23.227Z] Table password_reset_tokens created successfully
+[2025-04-27T18:50:23.271Z] Creating table: playing_with_neon
+[2025-04-27T18:50:23.335Z] Table playing_with_neon created successfully
+[2025-04-27T18:50:23.371Z] Creating table: quote_line_items
+[2025-04-27T18:50:23.438Z] Query error: relation "quote_line_items_id_seq" does not exist
+[2025-04-27T18:50:23.439Z] Failed query: CREATE TABLE IF NOT EXISTS "quote_line_items" (
+"id" integer NOT NULL DEFAULT nextval('quote_line_items_id_seq'::regclass),
+"quoteId" integer NOT NULL,
+"description" text NOT NULL,
+"quantity" double precision NOT NULL DEFAULT 1,
+"unitPrice" double precision NOT NULL,
+"total" double precision NOT NULL,
+"sortOrder" integer NOT NULL DEFAULT 0,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:23.439Z] Error creating table quote_line_items: relation "quote_line_items_id_seq" does not exist
+[2025-04-27T18:50:23.477Z] Creating table: quotes
+[2025-04-27T18:50:23.938Z] Query error: syntax error at or near "USER"
+[2025-04-27T18:50:23.938Z] Failed query: CREATE TABLE IF NOT EXISTS "quotes" (
+"id" integer NOT NULL DEFAULT nextval('quotes_id_seq'::regclass),
+"jobId" integer NOT NULL,
+"contractorId" integer NOT NULL,
+"landlordId" integer NOT NULL,
+"quoteNumber" text NOT NULL,
+"title" text NOT NULL,
+"status" USER-DEFINED NOT NULL DEFAULT 'draft'::quote_status,
+"subtotal" double precision NOT NULL,
+"taxRate" double precision NULL DEFAULT 0,
+"taxAmount" double precision NULL DEFAULT 0,
+"total" double precision NOT NULL,
+"notes" text NULL,
+"terms" text NULL,
+"termsAndConditions" text NULL,
+"discount" double precision NULL DEFAULT 0,
+"tax" double precision NULL DEFAULT 0,
+"preferredStartDate" timestamp without time zone NULL,
+"estimatedDuration" integer NULL DEFAULT 1,
+"validUntil" timestamp without time zone NULL,
+"acceptedAt" timestamp without time zone NULL,
+"rejectedAt" timestamp without time zone NULL,
+"viewedAt" timestamp without time zone NULL,
+"paymentMethods" json NULL DEFAULT '[]'::json,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+"updatedAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:23.938Z] Error creating table quotes: syntax error at or near "USER"
+[2025-04-27T18:50:23.980Z] Creating table: reviews
+[2025-04-27T18:50:24.435Z] Query error: relation "reviews_id_seq" does not exist
+[2025-04-27T18:50:24.436Z] Failed query: CREATE TABLE IF NOT EXISTS "reviews" (
+"id" integer NOT NULL DEFAULT nextval('reviews_id_seq'::regclass),
+"jobId" integer NOT NULL,
+"reviewerId" integer NOT NULL,
+"revieweeId" integer NOT NULL,
+"rating" integer NOT NULL,
+"comment" text NULL,
+"createdAt" timestamp without time zone NOT NULL DEFAULT now(),
+PRIMARY KEY ("id")
+)
+[2025-04-27T18:50:24.436Z] Error creating table reviews: relation "reviews_id_seq" does not exist
+[2025-04-27T18:50:24.472Z] Creating table: service_areas
+[2025-04-27T18:51:46.943Z] Starting schema initialization for target database
+[2025-04-27T18:51:46.947Z] Setting up target database connection
+[2025-04-27T18:51:46.948Z] Using migrations from: /home/runner/workspace/migrations
+[2025-04-27T18:51:46.949Z] WARNING: Dropping all existing tables in target database
+[2025-04-27T18:51:47.294Z] Running Drizzle migrations to initialize the schema
+[2025-04-27T18:51:50.196Z] Schema initialized successfully!
+[2025-04-27T18:51:50.197Z] Database connections closed
+[2025-04-27T19:08:32.288Z] ===== BEGINNING FULL DATA MIGRATION =====
+[2025-04-27T19:08:32.291Z] Source DB: ep-sparkling-sound-a6f8kyru.us-west-2.aws.neon.tech
+[2025-04-27T19:08:32.291Z] Target DB: ep-dark-bird-a4xtgivw-pooler.us-east-1.aws.neon.tech
+[2025-04-27T19:08:32.291Z] Migrating contractor profiles...
+[2025-04-27T19:08:35.492Z] Found 14 contractor profiles in source database
+[2025-04-27T19:08:35.558Z] ERROR migrating contractor profiles: column "userId" does not exist
+[2025-04-27T19:08:35.558Z] ERROR: Migration failed: column "userId" does not exist
+[2025-04-27T19:13:32.156Z] ===== BEGINNING FULL DATA MIGRATION =====
+[2025-04-27T19:13:32.162Z] Source DB: ep-sparkling-sound-a6f8kyru.us-west-2.aws.neon.tech
+[2025-04-27T19:13:32.162Z] Target DB: ep-dark-bird-a4xtgivw-pooler.us-east-1.aws.neon.tech
+[2025-04-27T19:13:32.163Z] Migrating contractor profiles...
+[2025-04-27T19:13:32.744Z] Found user ID column: "user_id" in target contractor_profiles table
+[2025-04-27T19:13:33.524Z] Found 14 contractor profiles in source database
+[2025-04-27T19:13:33.654Z] ERROR migrating contractor profiles: column "trades" of relation "contractor_profiles" does not exist
+[2025-04-27T19:13:33.654Z] ERROR: Migration failed: column "trades" of relation "contractor_profiles" does not exist
+[2025-04-27T19:14:19.006Z] ===== BEGINNING FULL DATA MIGRATION =====
+[2025-04-27T19:14:19.009Z] Source DB: ep-sparkling-sound-a6f8kyru.us-west-2.aws.neon.tech
+[2025-04-27T19:14:19.009Z] Target DB: ep-dark-bird-a4xtgivw-pooler.us-east-1.aws.neon.tech
+[2025-04-27T19:14:19.010Z] Migrating contractor profiles...
+[2025-04-27T19:14:19.587Z] Found user ID column: "user_id" in target contractor_profiles table
+[2025-04-27T19:14:19.745Z] Found 0 contractor profiles in source database
+[2025-04-27T19:14:19.745Z] Contractor profiles migration completed
+[2025-04-27T19:14:19.746Z] Migrating jobs...
+[2025-04-27T19:14:19.844Z] Found 11 jobs in source database
+[2025-04-27T19:14:19.978Z] ERROR migrating jobs: column "is_urgent" of relation "jobs" does not exist
+[2025-04-27T19:14:19.978Z] ERROR: Migration failed: column "is_urgent" of relation "jobs" does not exist
+[2025-04-27T19:14:44.109Z] ===== BEGINNING FULL DATA MIGRATION =====
+[2025-04-27T19:14:44.112Z] Source DB: ep-sparkling-sound-a6f8kyru.us-west-2.aws.neon.tech
+[2025-04-27T19:14:44.112Z] Target DB: ep-dark-bird-a4xtgivw-pooler.us-east-1.aws.neon.tech
+[2025-04-27T19:14:44.112Z] Migrating contractor profiles...
+[2025-04-27T19:14:44.712Z] Found user ID column: "user_id" in target contractor_profiles table
+[2025-04-27T19:14:44.841Z] Found 0 contractor profiles in source database
+[2025-04-27T19:14:44.841Z] Contractor profiles migration completed
+[2025-04-27T19:14:44.842Z] Migrating jobs...
+[2025-04-27T19:14:44.928Z] Found 0 jobs in source database
+[2025-04-27T19:14:44.929Z] Jobs migration completed
+[2025-04-27T19:14:44.929Z] Migrating bids...
+[2025-04-27T19:14:45.009Z] Found 0 bids in source database
+[2025-04-27T19:14:45.010Z] Bids migration completed
+[2025-04-27T19:14:45.010Z] Migrating other essential tables...
+[2025-04-27T19:14:45.010Z] Checking table: chat_rooms
+[2025-04-27T19:14:45.176Z] Found 6 rows in chat_rooms
+[2025-04-27T19:14:45.241Z] Row with ID 1 already exists in chat_rooms. Skipping.
+[2025-04-27T19:14:45.310Z] Row with ID 2 already exists in chat_rooms. Skipping.
+[2025-04-27T19:14:45.375Z] Row with ID 3 already exists in chat_rooms. Skipping.
+[2025-04-27T19:14:45.440Z] Row with ID 4 already exists in chat_rooms. Skipping.
+[2025-04-27T19:14:45.505Z] Row with ID 5 already exists in chat_rooms. Skipping.
+[2025-04-27T19:14:45.570Z] Row with ID 6 already exists in chat_rooms. Skipping.
+[2025-04-27T19:14:45.570Z] Checking table: chat_participants
+[2025-04-27T19:14:45.728Z] Found 12 rows in chat_participants
+[2025-04-27T19:14:45.867Z] Inserted row ID 1 into chat_participants
+[2025-04-27T19:14:45.998Z] Inserted row ID 3 into chat_participants
+[2025-04-27T19:14:46.134Z] Inserted row ID 5 into chat_participants
+[2025-04-27T19:14:46.264Z] Inserted row ID 7 into chat_participants
+[2025-04-27T19:14:46.394Z] Inserted row ID 9 into chat_participants
+[2025-04-27T19:14:46.524Z] Inserted row ID 11 into chat_participants
+[2025-04-27T19:14:46.662Z] Inserted row ID 2 into chat_participants
+[2025-04-27T19:14:46.792Z] Inserted row ID 4 into chat_participants
+[2025-04-27T19:14:46.923Z] Inserted row ID 6 into chat_participants
+[2025-04-27T19:14:47.058Z] Inserted row ID 8 into chat_participants
+[2025-04-27T19:14:47.191Z] Inserted row ID 10 into chat_participants
+[2025-04-27T19:14:47.326Z] Inserted row ID 12 into chat_participants
+[2025-04-27T19:14:47.326Z] Checking table: messages
+[2025-04-27T19:14:47.443Z] Found 20 rows in messages
+[2025-04-27T19:14:47.574Z] Inserted row ID 1 into messages
+[2025-04-27T19:14:47.706Z] Inserted row ID 3 into messages
+[2025-04-27T19:14:47.836Z] Inserted row ID 5 into messages
+[2025-04-27T19:14:47.965Z] Inserted row ID 7 into messages
+[2025-04-27T19:14:48.094Z] Inserted row ID 9 into messages
+[2025-04-27T19:14:48.224Z] Inserted row ID 12 into messages
+[2025-04-27T19:14:48.353Z] Inserted row ID 14 into messages
+[2025-04-27T19:14:48.482Z] Inserted row ID 16 into messages
+[2025-04-27T19:14:48.613Z] Inserted row ID 19 into messages
+[2025-04-27T19:14:48.745Z] Inserted row ID 2 into messages
+[2025-04-27T19:14:48.880Z] Inserted row ID 4 into messages
+[2025-04-27T19:14:49.010Z] Inserted row ID 6 into messages
+[2025-04-27T19:14:49.140Z] Inserted row ID 8 into messages
+[2025-04-27T19:14:49.270Z] Inserted row ID 10 into messages
+[2025-04-27T19:14:49.400Z] Inserted row ID 11 into messages
+[2025-04-27T19:14:49.529Z] Inserted row ID 13 into messages
+[2025-04-27T19:14:49.658Z] Inserted row ID 15 into messages
+[2025-04-27T19:14:49.788Z] Inserted row ID 17 into messages
+[2025-04-27T19:14:49.923Z] Inserted row ID 18 into messages
+[2025-04-27T19:14:50.059Z] Inserted row ID 20 into messages
+[2025-04-27T19:14:50.059Z] Checking table: reviews
+[2025-04-27T19:14:50.180Z] Found 0 rows in reviews
+[2025-04-27T19:14:50.180Z] No data to migrate for reviews. Skipping.
+[2025-04-27T19:14:50.181Z] Checking table: transactions
+[2025-04-27T19:14:50.303Z] Found 0 rows in transactions
+[2025-04-27T19:14:50.303Z] No data to migrate for transactions. Skipping.
+[2025-04-27T19:14:50.303Z] Checking table: landlord_profiles
+[2025-04-27T19:14:50.418Z] Found 5 rows in landlord_profiles
+[2025-04-27T19:14:50.551Z] Inserted row ID 3 into landlord_profiles
+[2025-04-27T19:14:50.685Z] Inserted row ID 4 into landlord_profiles
+[2025-04-27T19:14:50.821Z] Inserted row ID 5 into landlord_profiles
+[2025-04-27T19:14:50.953Z] Inserted row ID 6 into landlord_profiles
+[2025-04-27T19:14:51.085Z] Inserted row ID 7 into landlord_profiles
+[2025-04-27T19:14:51.086Z] Checking table: quotes
+[2025-04-27T19:14:51.206Z] Found 2 rows in quotes
+[2025-04-27T19:14:51.345Z] WARNING: Error migrating table quotes: column "terms_and_conditions" of relation "quotes" does not exist
+[2025-04-27T19:14:51.345Z] Checking table: quote_line_items
+[2025-04-27T19:14:51.941Z] Found 4 rows in quote_line_items
+[2025-04-27T19:14:52.079Z] WARNING: Error migrating table quote_line_items: insert or update on table "quote_line_items" violates foreign key constraint "quote_line_items_quote_id_fkey"
+[2025-04-27T19:14:52.080Z] Checking table: invoices
+[2025-04-27T19:14:52.599Z] Found 1 rows in invoices
+[2025-04-27T19:14:52.743Z] WARNING: Error migrating table invoices: insert or update on table "invoices" violates foreign key constraint "invoices_job_id_fkey"
+[2025-04-27T19:14:52.743Z] Checking table: invoice_line_items
+[2025-04-27T19:14:53.286Z] Found 2 rows in invoice_line_items
+[2025-04-27T19:14:53.431Z] WARNING: Error migrating table invoice_line_items: insert or update on table "invoice_line_items" violates foreign key constraint "invoice_line_items_invoice_id_fkey"
+[2025-04-27T19:14:53.431Z] Checking table: waitlist_entries
+[2025-04-27T19:14:53.971Z] Found 0 rows in waitlist_entries
+[2025-04-27T19:14:53.972Z] No data to migrate for waitlist_entries. Skipping.
+[2025-04-27T19:14:53.972Z] Other tables migration completed
+[2025-04-27T19:14:53.972Z] Updating sequences...

@@ -1,0 +1,96 @@
+Main problems you still have (causing broken login persistence):
+
+Problem	Why it's an issue
+1. You are setting session cookie maxAge: 0	This makes every cookie instantly expire after the login response finishes.
+2. You temporarily disabled cookie-based authentication	Your own code: NOTICE: Cookie-based authentication is DISABLED. Using token-based auth only.
+3. storage.sessionStore is still being used for session store	This is probably the wrong store! You should be using your new TCP-safe PostgreSQL session store, not storage.sessionStore.
+🚨 In plain English:
+You are setting cookies.
+
+But they expire immediately (maxAge: 0 = no lifetime).
+
+So when the browser reloads or hits /api/user, it has no valid cookie.
+
+Session ID is lost = "undefined session" = "Not authenticated."
+
+🛠 Here’s exactly what you need to fix:
+✅ 1. Remove maxAge: 0 in session cookie.
+
+Replace this:
+
+typescript
+Copy
+Edit
+cookie: { 
+  maxAge: 0, // ❌ disables cookies immediately
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none',
+  path: '/'
+}
+with this instead:
+
+typescript
+Copy
+Edit
+cookie: { 
+  maxAge: 1000 * 60 * 60 * 24, // ✅ 1 day
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none',
+  path: '/'
+}
+✅ This keeps cookies alive for 1 day (adjustable).
+
+✅ 2. Remove or re-enable cookie-based authentication.
+
+Right now your log says:
+
+pgsql
+Copy
+Edit
+NOTICE: Cookie-based authentication is DISABLED. Using token-based auth only.
+Remove this behavior.
+You must allow cookies again for session persistence to work.
+
+✅ 3. Use the correct PostgreSQL session store, not storage.sessionStore.
+
+Instead of:
+
+typescript
+Copy
+Edit
+store: storage.sessionStore,
+✅ You need to use the TCP-safe session store you built earlier:
+
+typescript
+Copy
+Edit
+import connectPgSimple from 'connect-pg-simple-esm';
+import { Pool } from 'pg';
+
+const pgSessionPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+const PgSession = connectPgSimple(session);
+
+app.use(session({
+  store: new PgSession({
+    pool: pgSessionPool,
+    tableName: 'session',
+    createTableIfMissing: false,
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: true,
+    httpOnly: true,
+    sameSite: 'none',
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
+    path: '/'
+  }
+}));
+✅ This connects ONLY using TCP, never Neon/WebSocket, and trusts the session table.

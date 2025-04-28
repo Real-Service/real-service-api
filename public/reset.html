@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Database</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.5;
+      padding: 2rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .container {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 2rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      margin-top: 0;
+      color: #333;
+    }
+    .btn {
+      background-color: #e11d48;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: #be123c;
+    }
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 4px;
+      display: none;
+    }
+    .success {
+      background-color: #ecfdf5;
+      border: 1px solid #10b981;
+      color: #047857;
+    }
+    .error {
+      background-color: #fef2f2;
+      border: 1px solid #ef4444;
+      color: #b91c1c;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Reset Database</h1>
+    <p>This utility will delete all jobs and bids in the database. This action cannot be undone.</p>
+    
+    <button id="resetBtn" class="btn">Reset Database</button>
+    
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const resetBtn = document.getElementById('resetBtn');
+    const result = document.getElementById('result');
+
+    resetBtn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to reset the database? All jobs and bids will be permanently deleted.')) {
+        resetBtn.disabled = true;
+        resetBtn.textContent = 'Resetting...';
+        
+        try {
+          const response = await fetch('/api/reset-database', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            result.className = 'result success';
+            result.textContent = '✅ Database reset successful! All jobs and bids have been deleted.';
+            result.style.display = 'block';
+          } else {
+            result.className = 'result error';
+            result.textContent = `❌ Error: ${data.message || 'Unknown error'}`;
+            result.style.display = 'block';
+          }
+        } catch (error) {
+          result.className = 'result error';
+          result.textContent = `❌ Error: ${error.message}`;
+          result.style.display = 'block';
+        } finally {
+          resetBtn.disabled = false;
+          resetBtn.textContent = 'Reset Database';
+        }
+      }
+    });
+  </script>
+</body>
+</html>

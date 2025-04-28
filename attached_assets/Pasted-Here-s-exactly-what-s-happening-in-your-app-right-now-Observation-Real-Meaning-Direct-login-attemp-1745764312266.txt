@@ -1,0 +1,62 @@
+Here's exactly what’s happening in your app right now:
+
+Observation	Real Meaning
+Direct login attempt fails immediately with "Console request failed: endpoint is disabled"	Your login database query is still using the wrong database client.
+/api/user check always shows "Session ID: undefined"	Because the login fails, no session ever gets created.
+Session Store warnings about fallback memory store	You are temporarily in memory store, but that's not the real issue anymore.
+🛑 Bottom Line Problem:
+✅ Your app starts correctly
+✅ Sessions can be saved if login succeeded
+✅ Cookies would be set correctly
+
+BUT — your /api/direct-login still tries to read users from a Neon/WebSocket client, which Replit blocks.
+
+🚨 Login fails before it even creates a session.
+
+🚀 Surgical Fix You Need Right Now:
+✅ You MUST force the /api/direct-login route to use a real pg.Pool TCP Postgres connection (authDb)
+NOT drizzle's original db client tied to serverless Neon.
+
+🛠 Here's how the working login route must look:
+typescript
+Copy
+Edit
+import { Request, Response } from 'express';
+import { authDb } from '../auth-db'; // ✅ TCP SSL client only!
+import { users } from '../schema';
+import { eq } from 'drizzle-orm';
+
+export const directLogin = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  try {
+    const foundUsers = await authDb  // ✅ USE authDb, not default db
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+
+    if (foundUsers.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const user = foundUsers[0];
+
+    if (user.password !== password) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    req.session.userId = user.id;
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+      }
+    });
+
+    return res.status(200).json({ message: 'Login successful', userId: user.id });
+  } catch (error) {
+    console.error('Direct login error:', error);
+    return res.status(500).json({ message: 'Server error during login' });
+  }
+};
+✅ NO drizzle db.
+✅ Only use your dedicated TCP Postgres authDb.

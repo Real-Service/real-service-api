@@ -1,0 +1,82 @@
+Sure! Here’s a structured AI Developer Prompt that you can copy and paste into your AI development environment to start implementing the necessary changes.
+
+Prompt for AI Developer
+
+Objective:
+Enhance the Maintenance Match platform by implementing key features that improve usability, engagement, and transaction security for landlords and contractors.
+
+1️⃣ Implement a Rating & Review System
+
+Description:
+	•	After a job is completed, both landlords and contractors should be able to leave star ratings (1-5) and a written review for each other.
+	•	Ratings should be visible on user profiles to improve trust.
+	•	The system should calculate and display average ratings based on past reviews.
+	•	Prevent users from review bombing by ensuring only completed transactions allow reviews.
+
+AI Implementation Steps:
+	1.	Create a Review Schema in the database to store ratings and comments.
+	2.	Add a rating submission UI for both parties after job completion.
+	3.	Ensure reviews are tied to completed jobs only and cannot be edited after submission.
+
+2️⃣ Add Real-Time Chat System
+
+Description:
+	•	Once a contractor is accepted for a job, a private chat should open between the landlord and the contractor.
+	•	Chat should support text messages, image uploads (before/after work pictures), and payment requests.
+	•	Implement read receipts and notifications for new messages.
+
+AI Implementation Steps:
+	1.	Use WebSockets (Socket.io for Node.js or Firebase Realtime DB) to enable real-time messaging.
+	2.	Create a chat interface with message history storage.
+	3.	Allow image uploads for contractors to provide before/after work proof.
+	4.	Implement notification pop-ups when a new message arrives.
+
+3️⃣ Optimize for Mobile Usability
+
+Description:
+	•	The platform should be fully responsive for mobile users.
+	•	Buttons, forms, and dashboards should adapt dynamically for smaller screens.
+
+AI Implementation Steps:
+	1.	Use CSS Flexbox/Grid and media queries for responsive design.
+	2.	Optimize buttons and input fields for touchscreens.
+	3.	Ensure job listings and chat messages are easily readable on mobile.
+
+4️⃣ Add Automated Notifications
+
+Description:
+	•	Users should receive instant notifications for:
+	•	New job postings (contractors only).
+	•	New bids (landlords only).
+	•	Chat messages.
+	•	Job status updates.
+	•	Notifications should work via email and in-app alerts.
+
+AI Implementation Steps:
+	1.	Use Firebase Cloud Messaging (FCM) or Web Push API for real-time in-app notifications.
+	2.	Set up email notifications (via SendGrid or Nodemailer).
+	3.	Add notification settings so users can toggle which alerts they receive.
+
+5️⃣ Improve Search & Filtering for Jobs
+
+Description:
+	•	Contractors should be able to filter jobs by:
+	•	Location (City/State)
+	•	Job Type (Electrical, Plumbing, HVAC, etc.)
+	•	Budget Range
+	•	Landlords should be able to filter contractors by:
+	•	Star Rating
+	•	Previous Jobs Completed
+	•	Pricing (Hourly vs. Fixed Rate)
+
+AI Implementation Steps:
+	1.	Modify the job listing and contractor database to include searchable tags.
+	2.	Implement a filtering system with dropdowns and range sliders.
+	3.	Optimize backend queries to ensure fast filtering without slowing down the platform.
+
+Final Integration Notes:
+	•	Ensure all new features align with the existing user experience.
+	•	Test each feature individually before full deployment.
+	•	Focus on speed optimization to keep the platform fast and responsive.
+
+🔥 Once implemented, the platform will be significantly more powerful, engaging, and ready for mass adoption. Let me know if you need modifications to this prompt! 🚀

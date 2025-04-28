@@ -1,0 +1,73 @@
+Final confirmed root cause:
+When your frontend sends login info,
+
+Your backend tries to find the user in the database (good)
+
+But the backend database query inside /api/direct-login still uses Neon/WebSocket client (wrong)
+
+In Replit production, Neon WebSocket database connections are BLOCKED, so the database query immediately fails → login fails → server sends 500 → frontend shows error.
+
+📢 In plain English:
+Login can never succeed because
+
+Your /api/direct-login is still querying the database through a wrong (serverless) client, not through the TCP SSL authDb client.
+
+🛠 Here’s what you must do (immediate solution):
+✅ 1. Create a TCP-safe authDb client (if you haven’t already):
+
+typescript
+Copy
+Edit
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+const authPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+const authDb = drizzle(authPool);
+
+export { authDb };
+✅ 2. Force /api/direct-login to use only authDb to query users.
+
+typescript
+Copy
+Edit
+import { Request, Response } from 'express';
+import { authDb } from '../auth-db';
+import { users } from '../schema';
+import { eq } from 'drizzle-orm';
+
+export const directLogin = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  try {
+    const foundUsers = await authDb
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+
+    if (foundUsers.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const user = foundUsers[0];
+
+    if (user.password !== password) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    req.session.userId = user.id;
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error after login:', err);
+      }
+    });
+
+    return res.status(200).json({ message: 'Login successful', userId: user.id });
+  } catch (error) {
+    console.error('Direct login error:', error);
+    return res.status(500).json({ message: 'Server error during login' });
+  }
+};

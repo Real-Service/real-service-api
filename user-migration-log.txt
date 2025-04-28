@@ -1,0 +1,32 @@
+[2025-04-27T18:53:01.105Z] Starting user migration
+[2025-04-27T18:53:01.595Z] Deleted existing users from target database
+[2025-04-27T18:53:01.708Z] Found 19 users in source database
+[2025-04-27T18:53:01.775Z] Target user table has 10 columns
+[2025-04-27T18:53:01.845Z] ✅ Migrated user 1: landlord1 (landlord1@example.com)
+[2025-04-27T18:53:01.911Z] ✅ Migrated user 2: landlord2 (landlord2@example.com)
+[2025-04-27T18:53:01.977Z] ✅ Migrated user 3: contractor7 (contractor7@expressbd.ca)
+[2025-04-27T18:53:02.042Z] ✅ Migrated user 4: contractor1 (contractor1@example.com)
+[2025-04-27T18:53:02.108Z] ✅ Migrated user 5: contractor2 (contractor2@example.com)
+[2025-04-27T18:53:02.173Z] ✅ Migrated user 6: contractor3 (contractor3@example.com)
+[2025-04-27T18:53:02.238Z] ✅ Migrated user 7: contractor 10 (info@expressbd.ca)
+[2025-04-27T18:53:02.304Z] ✅ Migrated user 11: johnlandlord (john.landlord@example.com)
+[2025-04-27T18:53:02.369Z] ✅ Migrated user 12: sarahlandlord (sarah.landlord@example.com)
+[2025-04-27T18:53:02.435Z] ✅ Migrated user 13: mikeplumber (mike.plumber@example.com)
+[2025-04-27T18:53:02.500Z] ✅ Migrated user 14: electricianbob (bob.electrician@example.com)
+[2025-04-27T18:53:02.568Z] ✅ Migrated user 15: testuser586577 (testuser586577@example.com)
+[2025-04-27T18:53:02.635Z] ✅ Migrated user 16: testuser605623 (testuser605623@example.com)
+[2025-04-27T18:53:02.700Z] ✅ Migrated user 17: testuser818072 (testuser818072@example.com)
+[2025-04-27T18:53:02.766Z] ✅ Migrated user 18: testlandlord (landlord@example.com)
+[2025-04-27T18:53:02.831Z] ✅ Migrated user 19: contractor 7 (contractor7@example.com)
+[2025-04-27T18:53:02.896Z] ✅ Migrated user 20: testuser (test@example.com)
+[2025-04-27T18:53:02.967Z] ✅ Migrated user 21: testuser_547998 (test547998@example.com)
+[2025-04-27T18:53:03.032Z] ✅ Migrated user 22: testuser903684 (testuser903684@example.com)
+[2025-04-27T18:53:03.161Z] Updated sequence users_id_seq to 23
+[2025-04-27T18:53:03.162Z] 
+User Migration Summary:
+[2025-04-27T18:53:03.162Z] -----------------
+[2025-04-27T18:53:03.162Z] Total users attempted: 19
+[2025-04-27T18:53:03.162Z] Successfully migrated: 19
+[2025-04-27T18:53:03.162Z] Failed: 0
+[2025-04-27T18:53:03.162Z] 
+User migration completed!

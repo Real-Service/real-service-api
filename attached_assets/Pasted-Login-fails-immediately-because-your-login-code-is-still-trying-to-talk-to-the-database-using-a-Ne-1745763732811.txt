@@ -1,0 +1,85 @@
+Login fails immediately → because your login code is still trying to talk to the database using a Neon/WebSocket client (blocked in production).
+
+No valid session is created → because the login process itself is crashing.
+
+🔥 Key Point:
+You still have NOT switched your /api/direct-login backend route
+to use the correct TCP SSL Postgres connection (authDb) for database queries.
+
+You're still using the default drizzle db somewhere inside login, which tries Neon WebSocket internally → blocked on Replit → causes Console request failed: endpoint is disabled.
+
+🛠️ Here's exactly what you now must fix:
+1. ✅ Make sure you have a clean TCP-safe authDb client.
+typescript
+Copy
+Edit
+// src/auth-db.ts
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+const authPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+const authDb = drizzle(authPool);
+
+export { authDb };
+2. ✅ Update your /api/direct-login route code to use ONLY authDb.
+typescript
+Copy
+Edit
+// src/routes/direct-login.ts
+import { Request, Response } from 'express';
+import { authDb } from '../auth-db'; // ✅ TCP/SSL client
+import { users } from '../schema';   // your drizzle-orm schema
+import { eq } from 'drizzle-orm';
+
+export const directLogin = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  try {
+    const foundUsers = await authDb  // ✅ use authDb
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+
+    if (foundUsers.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const user = foundUsers[0];
+
+    if (user.password !== password) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    req.session.userId = user.id;
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error after login:', err);
+      }
+    });
+
+    return res.status(200).json({ message: 'Login successful', userId: user.id });
+  } catch (error) {
+    console.error('Direct login error:', error);
+    return res.status(500).json({ message: 'Server error during login' });
+  }
+};
+✅ This way, when you login:
+
+It uses TCP Postgres.
+
+No console request errors.
+
+User lookup succeeds.
+
+Session is created.
+
+Session cookie is returned.
+
+📢 Right now, your login fails before session can even be created.
+That's why everything after (/api/user, session info, etc.) fails too.
+Because login itself blows up.
+

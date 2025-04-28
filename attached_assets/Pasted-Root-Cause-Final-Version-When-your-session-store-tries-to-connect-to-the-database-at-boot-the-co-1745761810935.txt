@@ -1,0 +1,73 @@
+Root Cause (Final Version):
+When your session store tries to connect to the database at boot,
+the code that connects is still using NeonServerless (WebSocket), NOT pg.Pool TCP SSL.
+
+Even though you have a pg.Pool,
+the connect-pg-simple session store isn't being passed the right database connection
+(or is trying to "create session table" automatically through the wrong method).
+
+🛠 Here's exactly why it happens:
+You have a pg.Pool instance (correct) ✅
+
+But somewhere during session initialization (setupProductionSessionStore in your logs),
+you're calling the wrong function to check/create the session table, and it's trying to use a drizzle client internally. ❌
+
+Meaning: you are mixing correct TCP db pool + old Neon drizzle database connection together at startup.
+
+📢 In plain English:
+✅ The session table does exist in the database.
+❌ Your app is still trying to "recreate or validate" the table using Neon serverless client code (drizzle serverless), which fails in production Replit.
+
+🎯 Real Solution (No Band-Aids):
+✅ You must completely remove or disable any automatic "session table creation/check" at startup.
+
+You don't need to "check" or "create" the session table at app start anymore.
+
+It already exists → just trust it.
+
+✅ Only initialize the session store normally using the pg.Pool.
+
+✅ Let connect-pg-simple-esm handle finding the table inside Postgres via TCP.
+
+🛠 Correct Express Session Setup Code:
+typescript
+Copy
+Edit
+import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple-esm';
+import { Pool } from 'pg';
+
+const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+const PgSession = connectPgSimple(session);
+
+app.use(session({
+  store: new PgSession({
+    pool: pgPool, // ✅ No check/create scripts
+    tableName: 'session',
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
+  }
+}));
+✅ NO startup query.
+✅ NO session table validation logic.
+✅ NO drizzle client for sessions at all.
+✅ Only TCP pg.Pool for session store.
+
+🛡 After this:
+
+✅	Result
+Session store will initialize correctly	✅
+Sessions will be saved to the session table	✅
+No console errors about Neon/console request	✅
+No fallback to memory store	✅

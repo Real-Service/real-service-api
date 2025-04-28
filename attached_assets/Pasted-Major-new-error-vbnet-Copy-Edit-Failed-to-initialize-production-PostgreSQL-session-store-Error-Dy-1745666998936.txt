@@ -1,0 +1,97 @@
+Major new error:
+vbnet
+Copy
+Edit
+Failed to initialize production PostgreSQL session store: Error: Dynamic require of "pg" is not supported
+Translation:
+
+Your server code is trying to do a require('pg') at runtime inside ESM (ECMAScript module) code.
+
+In pure ESM mode (like you're running in production), you cannot use require(). You must use import.
+
+Why is this happening now?
+You are likely doing one of these somewhere:
+
+javascript
+Copy
+Edit
+const pg = require('pg');
+or
+
+javascript
+Copy
+Edit
+const connectPgSimple = require('connect-pg-simple')(session);
+inside a TypeScript/ESM project.
+
+How to fix it:
+✅ 1. Use import instead of require
+At the top of your file, use:
+
+typescript
+Copy
+Edit
+import connectPgSimple from 'connect-pg-simple';
+import pg from 'pg';
+instead of any require().
+
+✅ 2. If connect-pg-simple doesn’t support ESM cleanly (it sometimes doesn’t), you have two options:
+
+Use a wrapper like createRequire from Node.js module package (messy).
+
+Better: Replace connect-pg-simple with a modern alternative that fully supports ESM.
+
+Example replacement that is ESM-ready:
+🔵 connect-pg-simple-esm — a drop-in replacement.
+
+To install:
+
+bash
+Copy
+Edit
+npm install connect-pg-simple-esm
+Then in your code:
+
+typescript
+Copy
+Edit
+import connectPgSimple from 'connect-pg-simple-esm';
+and everything else stays almost identical.
+
+Why are you getting "duplicate members" warnings?
+This part from your logs:
+
+pgsql
+Copy
+Edit
+[WARNING] Duplicate member "getUser" in class body [duplicate-class-member]
+means:
+
+You accidentally defined the same method twice in the same TypeScript class.
+
+Example problem:
+
+typescript
+Copy
+Edit
+class Storage {
+  async getUser(id: number): Promise<User> {...}
+
+  ...
+
+  async getUser(id: number): Promise<User> {...} // <-- defined twice by mistake
+}
+🛠️ Simple fix:
+
+Go into server/storage.ts.
+
+Delete the duplicate method definitions.
+
+Keep only one version of each function like getUser, createUser, updateUser, etc.
+
+Summarizing the current fixes:
+
+Problem	Fix
+Dynamic require of "pg"	Switch all require to import, or install connect-pg-simple-esm
+Duplicate class members	Remove duplicate method definitions in storage.ts
+Session store fallback to memory	Once imports are correct, session store should connect properly to Postgres

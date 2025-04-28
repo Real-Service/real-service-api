@@ -1,0 +1,94 @@
+ What’s happening right now:
+
+Problem	Evidence
+Login fails with Console request failed: endpoint is disabled	Login form frontend error + backend console errors
+Error location: drizzle-orm/node-postgres/session.js	Always mentioned in stacktrace
+No valid session saved (Session ID: undefined)	In logs
+🚨 Root Cause (final version):
+You are still trying to query the database for user login using the default drizzle db instance that was created using Neon serverless.
+(Not your fixed authDb TCP SSL Postgres connection.)
+
+Because drizzle's default db connection internally uses WebSocket console requests (even if you switched the app’s pool) unless you manually replace the connection in your login code.
+
+📢 Translation:
+✅ You did fix the backend server, session store, session table, TCP SSL pool.
+
+❌ Your login route is still using the wrong database client.
+
+🔥 How to fix login properly:
+You need to use your manual authDb TCP SSL client for login, not the default drizzle db.
+
+🛠 Correct Login Setup:
+✅ 1. Make a proper TCP SSL database connection for authentication (if not already).
+
+typescript
+Copy
+Edit
+// src/auth-db.ts
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+const authPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+const authDb = drizzle(authPool);
+
+export { authDb };
+✅ 2. Fix your login route to only use authDb, not db.
+
+typescript
+Copy
+Edit
+// src/routes/direct-login.ts
+import { Request, Response } from 'express';
+import { authDb } from '../auth-db';
+import { users } from '../schema';
+import { eq } from 'drizzle-orm';
+
+export const directLogin = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  try {
+    const foundUsers = await authDb
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+
+    if (foundUsers.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const user = foundUsers[0];
+
+    if (user.password !== password) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    req.session.userId = user.id;
+    return res.status(200).json({ message: 'Login successful', userId: user.id });
+  } catch (error) {
+    console.error('Direct login error:', error);
+    return res.status(500).json({ message: 'Server error during login' });
+  }
+};
+✅ Notice that we now import and use authDb, not the default db.
+
+🔥 Why this matters:
+
+Wrong	Correct
+drizzle db client → Neon serverless → Console request → Blocked in production	authDb manual TCP SSL pg.Pool → Works perfectly in Replit production
+Console errors on login	Clean login requests
+Session not properly initialized	Session saved into Postgres
+🎯 Recap: Your app is almost 100% fixed.
+The ONLY thing you need to change now is:
+force your login/auth routes to use the correct TCP SSL database client.
+
+🛡 Once you fix this:
+
+✅	
+Login succeeds without console error	✅
+Sessions are saved to Postgres	✅
+Users stay logged in after refresh	✅
+Full production-grade app achieved	✅

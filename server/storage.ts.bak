@@ -1,0 +1,2403 @@
+import { 
+  users, type User, type InsertUser, 
+  waitlistEntries, type WaitlistEntry, type InsertWaitlistEntry,
+  landlordProfiles, type LandlordProfile, type InsertLandlordProfile,
+  contractorProfiles, type ContractorProfile, type InsertContractorProfile,
+  jobs, type Job, type InsertJob,
+  bids, type Bid, type InsertBid,
+  transactions, type Transaction, type InsertTransaction,
+  chatRooms, chatParticipants, messages, type Message, type InsertMessage,
+  reviews, type Review, type InsertReview,
+  passwordResetTokens, type PasswordResetToken, type InsertPasswordResetToken,
+  quotes, type Quote, type InsertQuote,
+  quoteLineItems, type QuoteLineItem, type InsertQuoteLineItem,
+  invoices, type Invoice, type InsertInvoice,
+  invoiceLineItems, type InvoiceLineItem, type InsertInvoiceLineItem
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, inArray, count } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import createMemoryStore from "memorystore";
+
+// Access the pool that's already properly configured for each environment in db.ts
+// We store it on the globalThis.databasePool property
+const pool = (globalThis as any).databasePool;
+
+// IStorage interface with all CRUD methods
+export interface IStorage {
+  // Session store
+  sessionStore: session.Store;
+  // User management
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, updates: Partial<User>): Promise<User | undefined>;
+  
+  // Landlord profiles
+  getLandlordProfile(userId: number): Promise<LandlordProfile | undefined>;
+  createLandlordProfile(profile: InsertLandlordProfile): Promise<LandlordProfile>;
+  updateLandlordProfile(userId: number, updates: Partial<LandlordProfile>): Promise<LandlordProfile | undefined>;
+  
+  // Contractor profiles
+  getContractorProfile(userId: number): Promise<ContractorProfile | undefined>;
+  createContractorProfile(profile: InsertContractorProfile): Promise<ContractorProfile>;
+  updateContractorProfile(userId: number, updates: Partial<ContractorProfile>): Promise<ContractorProfile | undefined>;
+  
+  // Jobs
+  getJob(id: number): Promise<Job | undefined>;
+  getJobsByLandlord(landlordId: number): Promise<Job[]>;
+  getAvailableJobs(): Promise<Job[]>;
+  getAllJobs(): Promise<Job[]>;
+  getJobsByContractor(contractorId: number): Promise<Job[]>;
+  createJob(job: InsertJob): Promise<Job>;
+  updateJob(id: number, updates: Partial<Job>): Promise<Job | undefined>;
+  deleteJob(id: number): Promise<boolean>;
+  deleteAllJobs(): Promise<boolean>;
+  
+  // Bids
+  getBid(id: number): Promise<Bid | undefined>;
+  getBidsForJob(jobId: number): Promise<Bid[]>;
+  getBidCountForJob(jobId: number): Promise<number>;
+  getBidsByContractor(contractorId: number): Promise<Bid[]>;
+  createBid(bid: InsertBid): Promise<Bid>;
+  updateBid(id: number, updates: Partial<Bid>): Promise<Bid | undefined>;
+  deleteBid(id: number): Promise<boolean>;
+  deleteAllBids(): Promise<boolean>;
+  
+  // Transactions
+  getTransaction(id: number): Promise<Transaction | undefined>;
+  getTransactionsByUser(userId: number): Promise<Transaction[]>;
+  getTransactionsByJob(jobId: number): Promise<Transaction[]>;
+  createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+  
+  // Messaging
+  getChatRoom(id: number): Promise<any | undefined>;
+  getChatRoomsByUser(userId: number): Promise<any[]>;
+  getChatRoomByJob(jobId: number): Promise<any | undefined>;
+  createChatRoom(jobId: number): Promise<any>;
+  addParticipantToChat(chatRoomId: number, userId: number): Promise<any>;
+  getMessages(chatRoomId: number): Promise<Message[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
+  
+  // Reviews
+  getReview(id: number): Promise<Review | undefined>;
+  getReviewsByJob(jobId: number): Promise<Review[]>;
+  getReviewsByReviewer(reviewerId: number): Promise<Review[]>;
+  getReviewsByReviewee(revieweeId: number): Promise<Review[]>;
+  createReview(review: InsertReview): Promise<Review>;
+  
+  // Waitlist (Legacy)
+  createWaitlistEntry(entry: InsertWaitlistEntry): Promise<WaitlistEntry>;
+  getWaitlistEntryByEmail(email: string): Promise<WaitlistEntry | undefined>;
+  getWaitlistEntries(): Promise<WaitlistEntry[]>;
+  
+  // Password Reset
+  createPasswordResetToken(userId: number, token: string, expiresAt: Date): Promise<PasswordResetToken>;
+  getPasswordResetTokenByToken(token: string): Promise<PasswordResetToken | undefined>;
+  markPasswordResetTokenAsUsed(token: string): Promise<PasswordResetToken | undefined>;
+  
+  // Quotes
+  getQuote(id: number): Promise<Quote | undefined>;
+  getQuotesByContractor(contractorId: number): Promise<Quote[]>;
+  getQuotesByLandlord(landlordId: number): Promise<Quote[]>;
+  getQuotesByJob(jobId: number): Promise<Quote[]>;
+  createQuote(quote: InsertQuote): Promise<Quote>;
+  updateQuote(id: number, updates: Partial<Quote>): Promise<Quote | undefined>;
+  markQuoteAsViewed(id: number): Promise<Quote | undefined>;
+  markQuoteAsAccepted(id: number): Promise<Quote | undefined>;
+  markQuoteAsRejected(id: number, reason?: string): Promise<Quote | undefined>;
+  markQuoteAsRevised(id: number): Promise<Quote | undefined>;
+  
+  // Quote Line Items
+  getQuoteLineItemsByQuote(quoteId: number): Promise<QuoteLineItem[]>;
+  createQuoteLineItem(lineItem: InsertQuoteLineItem): Promise<QuoteLineItem>;
+  updateQuoteLineItem(id: number, updates: Partial<QuoteLineItem>): Promise<QuoteLineItem | undefined>;
+  deleteQuoteLineItem(id: number): Promise<boolean>;
+  
+  // Invoices
+  getInvoice(id: number): Promise<Invoice | undefined>;
+  getInvoicesByContractor(contractorId: number): Promise<Invoice[]>;
+  getInvoicesByLandlord(landlordId: number): Promise<Invoice[]>;
+  getInvoicesByJob(jobId: number): Promise<Invoice[]>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoice(id: number, updates: Partial<Invoice>): Promise<Invoice | undefined>;
+  markInvoiceAsViewed(id: number): Promise<Invoice | undefined>;
+  markInvoiceAsPaid(id: number, paymentMethod: string, paymentDetails?: string): Promise<Invoice | undefined>;
+  markInvoiceAsOverdue(id: number): Promise<Invoice | undefined>;
+  markInvoiceAsCancelled(id: number, reason?: string): Promise<Invoice | undefined>;
+  
+  // Invoice Line Items
+  getInvoiceLineItemsByInvoice(invoiceId: number): Promise<InvoiceLineItem[]>;
+  createInvoiceLineItem(lineItem: InsertInvoiceLineItem): Promise<InvoiceLineItem>;
+  updateInvoiceLineItem(id: number, updates: Partial<InvoiceLineItem>): Promise<InvoiceLineItem | undefined>;
+  deleteInvoiceLineItem(id: number): Promise<boolean>;
+}
+
+export class MemStorage implements IStorage {
+  // In-memory storage
+  private users: Map<number, User>;
+  private landlordProfiles: Map<number, LandlordProfile>;
+  private contractorProfiles: Map<number, ContractorProfile>;
+  private jobs: Map<number, Job>;
+  private bids: Map<number, Bid>;
+  private transactions: Map<number, Transaction>;
+  private chatRooms: Map<number, any>;
+  private chatParticipants: Map<number, any>;
+  private messages: Map<number, Message>;
+  private reviews: Map<number, Review>;
+  private waitlistEntries: Map<number, WaitlistEntry>;
+  private passwordResetTokens: Map<number, PasswordResetToken>;
+  private quotes: Map<number, Quote>;
+  private quoteLineItems: Map<number, QuoteLineItem>;
+  private invoices: Map<number, Invoice>;
+  private invoiceLineItems: Map<number, InvoiceLineItem>;
+  
+  // Session store
+  sessionStore: session.Store;
+  
+  // Counters for generating IDs
+  currentUserId: number;
+  currentLandlordProfileId: number;
+  currentContractorProfileId: number;
+  currentJobId: number;
+  currentBidId: number;
+  currentTransactionId: number;
+  currentChatRoomId: number;
+  currentChatParticipantId: number;
+  currentMessageId: number;
+  currentReviewId: number;
+  currentWaitlistId: number;
+  currentPasswordResetTokenId: number;
+  currentQuoteId: number;
+  currentQuoteLineItemId: number;
+  currentInvoiceId: number;
+  currentInvoiceLineItemId: number;
+
+  constructor() {
+    // Initialize session store
+    const MemoryStore = createMemoryStore(session);
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    });
+    // Initialize maps
+    this.users = new Map();
+    this.landlordProfiles = new Map();
+    this.contractorProfiles = new Map();
+    this.jobs = new Map();
+    this.bids = new Map();
+    this.transactions = new Map();
+    this.chatRooms = new Map();
+    this.chatParticipants = new Map();
+    this.messages = new Map();
+    this.reviews = new Map();
+    this.waitlistEntries = new Map();
+    this.passwordResetTokens = new Map();
+    this.quotes = new Map();
+    this.quoteLineItems = new Map();
+    this.invoices = new Map();
+    this.invoiceLineItems = new Map();
+    
+    // Initialize counters
+    this.currentUserId = 1;
+    this.currentLandlordProfileId = 1;
+    this.currentContractorProfileId = 1;
+    this.currentJobId = 1;
+    this.currentBidId = 1;
+    this.currentTransactionId = 1;
+    this.currentChatRoomId = 1;
+    this.currentChatParticipantId = 1;
+    this.currentMessageId = 1;
+    this.currentReviewId = 1;
+    this.currentWaitlistId = 1;
+    this.currentPasswordResetTokenId = 1;
+    this.currentQuoteId = 1;
+    this.currentQuoteLineItemId = 1;
+    this.currentInvoiceId = 1;
+    this.currentInvoiceLineItemId = 1;
+  }
+
+  // User management methods
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.username.toLowerCase() === username.toLowerCase(),
+    );
+  }
+  
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.email.toLowerCase() === email.toLowerCase(),
+    );
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = this.currentUserId++;
+    const now = new Date();
+    const user: User = { 
+      ...insertUser, 
+      id, 
+      createdAt: now,
+      updatedAt: now,
+      phone: insertUser.phone || null,
+      profilePicture: insertUser.profilePicture || null
+    };
+    this.users.set(id, user);
+    return user;
+  }
+  
+  async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    
+    const updatedUser = { 
+      ...user, 
+      ...updates, 
+      updatedAt: new Date() 
+    };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  // Landlord profile methods
+  async getLandlordProfile(userId: number): Promise<LandlordProfile | undefined> {
+    return Array.from(this.landlordProfiles.values()).find(
+      (profile) => profile.userId === userId,
+    );
+  }
+
+  async createLandlordProfile(profile: InsertLandlordProfile): Promise<LandlordProfile> {
+    const id = this.currentLandlordProfileId++;
+    const landlordProfile: LandlordProfile = {
+      ...profile,
+      id,
+      walletBalance: 0,
+      averageRating: null,
+      totalRatings: 0,
+      properties: profile.properties || [],
+      bio: profile.bio || null
+    };
+    this.landlordProfiles.set(id, landlordProfile);
+    return landlordProfile;
+  }
+
+  async updateLandlordProfile(userId: number, updates: Partial<LandlordProfile>): Promise<LandlordProfile | undefined> {
+    const profile = Array.from(this.landlordProfiles.values()).find(
+      (p) => p.userId === userId,
+    );
+    if (!profile) return undefined;
+    
+    const updatedProfile = { ...profile, ...updates };
+    this.landlordProfiles.set(profile.id, updatedProfile);
+    return updatedProfile;
+  }
+
+  // Contractor profile methods
+  async getContractorProfile(userId: number): Promise<ContractorProfile | undefined> {
+    return Array.from(this.contractorProfiles.values()).find(
+      (profile) => profile.userId === userId,
+    );
+  }
+
+  async createContractorProfile(profile: InsertContractorProfile): Promise<ContractorProfile> {
+    const id = this.currentContractorProfileId++;
+    const contractorProfile: ContractorProfile = {
+      id,
+      userId: profile.userId,
+      walletBalance: 0,
+      averageRating: null,
+      totalRatings: 0,
+      skills: profile.skills || [],
+      serviceArea: profile.serviceArea || {},
+      bio: profile.bio || null,
+      background: profile.background || null,
+      availability: profile.availability || null,
+      city: profile.city || null,
+      state: profile.state || null,
+      serviceRadius: profile.serviceRadius || 25,
+      serviceZipCodes: profile.serviceZipCodes || []
+    };
+    this.contractorProfiles.set(id, contractorProfile);
+    return contractorProfile;
+  }
+
+  async updateContractorProfile(userId: number, updates: Partial<ContractorProfile>): Promise<ContractorProfile | undefined> {
+    const profile = Array.from(this.contractorProfiles.values()).find(
+      (p) => p.userId === userId,
+    );
+    if (!profile) return undefined;
+    
+    console.log("Updating contractor profile - Original:", profile);
+    console.log("Updating contractor profile - Updates:", updates);
+    
+    const updatedProfile = { ...profile, ...updates };
+    
+    console.log("Updating contractor profile - Result:", updatedProfile);
+    
+    this.contractorProfiles.set(profile.id, updatedProfile);
+    return updatedProfile;
+  }
+
+  // Job methods
+  async getJob(id: number): Promise<Job | undefined> {
+    return this.jobs.get(id);
+  }
+
+  async getJobsByLandlord(landlordId: number): Promise<Job[]> {
+    return Array.from(this.jobs.values()).filter(
+      (job) => job.landlordId === landlordId,
+    );
+  }
+
+  async getAvailableJobs(): Promise<Job[]> {
+    return Array.from(this.jobs.values()).filter(
+      (job) => job.status === "open",
+    );
+  }
+  
+  async getAllJobs(): Promise<Job[]> {
+    return Array.from(this.jobs.values());
+  }
+
+  async getJobsByContractor(contractorId: number): Promise<Job[]> {
+    return Array.from(this.jobs.values()).filter(
+      (job) => job.contractorId === contractorId,
+    );
+  }
+
+  async createJob(job: InsertJob): Promise<Job> {
+    const id = this.currentJobId++;
+    const now = new Date();
+    const newJob: Job = {
+      ...job,
+      id,
+      status: "draft",
+      categoryTags: job.categoryTags || [],
+      images: job.images || [],
+      budget: job.budget || null,
+      startDate: job.startDate || null,
+      createdAt: now,
+      updatedAt: now,
+      completionDate: null,
+      contractorId: null
+    };
+    this.jobs.set(id, newJob);
+    return newJob;
+  }
+
+  async updateJob(id: number, updates: Partial<Job>): Promise<Job | undefined> {
+    const job = this.jobs.get(id);
+    if (!job) return undefined;
+    
+    const updatedJob = { 
+      ...job, 
+      ...updates, 
+      updatedAt: new Date() 
+    };
+    this.jobs.set(id, updatedJob);
+    return updatedJob;
+  }
+  
+  async deleteJob(id: number): Promise<boolean> {
+    const exists = this.jobs.has(id);
+    if (exists) {
+      this.jobs.delete(id);
+      return true;
+    }
+    return false;
+  }
+  
+  async deleteAllJobs(): Promise<boolean> {
+    this.jobs.clear();
+    this.currentJobId = 1;
+    return true;
+  }
+
+  // Bid methods
+  async getBid(id: number): Promise<Bid | undefined> {
+    return this.bids.get(id);
+  }
+
+  async getBidsForJob(jobId: number): Promise<Bid[]> {
+    return Array.from(this.bids.values()).filter(
+      (bid) => bid.jobId === jobId,
+    );
+  }
+  
+  async getBidCountForJob(jobId: number): Promise<number> {
+    return Array.from(this.bids.values()).filter(
+      (bid) => bid.jobId === jobId,
+    ).length;
+  }
+
+  async getBidsByContractor(contractorId: number): Promise<Bid[]> {
+    return Array.from(this.bids.values()).filter(
+      (bid) => bid.contractorId === contractorId,
+    );
+  }
+
+  async createBid(bid: InsertBid): Promise<Bid> {
+    const id = this.currentBidId++;
+    const now = new Date();
+    const newBid: Bid = {
+      ...bid,
+      id,
+      status: "pending",
+      timeEstimate: bid.timeEstimate || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.bids.set(id, newBid);
+    return newBid;
+  }
+
+  async updateBid(id: number, updates: Partial<Bid>): Promise<Bid | undefined> {
+    const bid = this.bids.get(id);
+    if (!bid) return undefined;
+    
+    const updatedBid = { 
+      ...bid, 
+      ...updates, 
+      updatedAt: new Date() 
+    };
+    this.bids.set(id, updatedBid);
+    return updatedBid;
+  }
+  
+  async deleteBid(id: number): Promise<boolean> {
+    const exists = this.bids.has(id);
+    if (exists) {
+      this.bids.delete(id);
+      return true;
+    }
+    return false;
+  }
+  
+  async deleteAllBids(): Promise<boolean> {
+    this.bids.clear();
+    this.currentBidId = 1;
+    return true;
+  }
+
+  // Transaction methods
+  async getTransaction(id: number): Promise<Transaction | undefined> {
+    return this.transactions.get(id);
+  }
+
+  async getTransactionsByUser(userId: number): Promise<Transaction[]> {
+    return Array.from(this.transactions.values()).filter(
+      (transaction) => transaction.userId === userId,
+    );
+  }
+
+  async getTransactionsByJob(jobId: number): Promise<Transaction[]> {
+    return Array.from(this.transactions.values()).filter(
+      (transaction) => transaction.jobId === jobId,
+    );
+  }
+
+  async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
+    const id = this.currentTransactionId++;
+    const newTransaction: Transaction = {
+      ...transaction,
+      id,
+      createdAt: new Date(),
+      description: transaction.description || null,
+      jobId: transaction.jobId || null,
+      reference: transaction.reference || null
+    };
+    this.transactions.set(id, newTransaction);
+    return newTransaction;
+  }
+
+  // Chat methods
+  async getChatRoom(id: number): Promise<any | undefined> {
+    return this.chatRooms.get(id);
+  }
+
+  async getChatRoomsByUser(userId: number): Promise<any[]> {
+    const participantEntries = Array.from(this.chatParticipants.values()).filter(
+      (participant) => participant.userId === userId,
+    );
+    
+    const chatRoomIds = participantEntries.map(entry => entry.chatRoomId);
+    
+    return Array.from(this.chatRooms.values()).filter(
+      (room) => chatRoomIds.includes(room.id),
+    );
+  }
+
+  async getChatRoomByJob(jobId: number): Promise<any | undefined> {
+    return Array.from(this.chatRooms.values()).find(
+      (room) => room.jobId === jobId,
+    );
+  }
+
+  async createChatRoom(jobId: number): Promise<any> {
+    const id = this.currentChatRoomId++;
+    const newChatRoom = {
+      id,
+      jobId,
+      createdAt: new Date(),
+    };
+    this.chatRooms.set(id, newChatRoom);
+    return newChatRoom;
+  }
+
+  async addParticipantToChat(chatRoomId: number, userId: number): Promise<any> {
+    const id = this.currentChatParticipantId++;
+    const newParticipant = {
+      id,
+      chatRoomId,
+      userId,
+      lastRead: new Date(),
+    };
+    this.chatParticipants.set(id, newParticipant);
+    return newParticipant;
+  }
+
+  async getMessages(chatRoomId: number): Promise<Message[]> {
+    return Array.from(this.messages.values())
+      .filter((message) => message.chatRoomId === chatRoomId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const id = this.currentMessageId++;
+    const newMessage: Message = {
+      ...message,
+      id,
+      type: message.type || "text",
+      createdAt: new Date(),
+    };
+    this.messages.set(id, newMessage);
+    return newMessage;
+  }
+
+  // Review methods
+  async getReview(id: number): Promise<Review | undefined> {
+    return this.reviews.get(id);
+  }
+
+  async getReviewsByJob(jobId: number): Promise<Review[]> {
+    return Array.from(this.reviews.values()).filter(
+      (review) => review.jobId === jobId,
+    );
+  }
+
+  async getReviewsByReviewer(reviewerId: number): Promise<Review[]> {
+    return Array.from(this.reviews.values()).filter(
+      (review) => review.reviewerId === reviewerId,
+    );
+  }
+
+  async getReviewsByReviewee(revieweeId: number): Promise<Review[]> {
+    return Array.from(this.reviews.values()).filter(
+      (review) => review.revieweeId === revieweeId,
+    );
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const id = this.currentReviewId++;
+    const newReview: Review = {
+      ...review,
+      id,
+      comment: review.comment || null,
+      createdAt: new Date(),
+    };
+    this.reviews.set(id, newReview);
+    
+    // Update the average rating for the reviewee
+    const user = await this.getUser(review.revieweeId);
+    if (user) {
+      if (user.userType === "landlord") {
+        const landlordProfile = await this.getLandlordProfile(user.id);
+        if (landlordProfile) {
+          const currentTotalRatings = landlordProfile.totalRatings || 0;
+          const currentRating = landlordProfile.averageRating || 0;
+          
+          const newTotalRatings = currentTotalRatings + 1;
+          const newRating = ((currentRating * currentTotalRatings) + review.rating) / newTotalRatings;
+          
+          await this.updateLandlordProfile(user.id, {
+            averageRating: newRating,
+            totalRatings: newTotalRatings,
+          });
+        }
+      } else if (user.userType === "contractor") {
+        const contractorProfile = await this.getContractorProfile(user.id);
+        if (contractorProfile) {
+          const currentTotalRatings = contractorProfile.totalRatings || 0;
+          const currentRating = contractorProfile.averageRating || 0;
+          
+          const newTotalRatings = currentTotalRatings + 1;
+          const newRating = ((currentRating * currentTotalRatings) + review.rating) / newTotalRatings;
+          
+          await this.updateContractorProfile(user.id, {
+            averageRating: newRating,
+            totalRatings: newTotalRatings,
+          });
+        }
+      }
+    }
+    
+    return newReview;
+  }
+
+  // Waitlist methods (Legacy)
+  async createWaitlistEntry(insertEntry: InsertWaitlistEntry): Promise<WaitlistEntry> {
+    const id = this.currentWaitlistId++;
+    const entry: WaitlistEntry = { 
+      ...insertEntry, 
+      id, 
+      createdAt: new Date() 
+    };
+    this.waitlistEntries.set(id, entry);
+    return entry;
+  }
+
+  async getWaitlistEntryByEmail(email: string): Promise<WaitlistEntry | undefined> {
+    return Array.from(this.waitlistEntries.values()).find(
+      (entry) => entry.email.toLowerCase() === email.toLowerCase(),
+    );
+  }
+
+  async getWaitlistEntries(): Promise<WaitlistEntry[]> {
+    return Array.from(this.waitlistEntries.values());
+  }
+
+  // Password Reset methods
+  async createPasswordResetToken(userId: number, token: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const id = this.currentPasswordResetTokenId++;
+    const now = new Date();
+    const resetToken: PasswordResetToken = {
+      id,
+      userId,
+      token,
+      expiresAt,
+      createdAt: now,
+      usedAt: null
+    };
+    this.passwordResetTokens.set(id, resetToken);
+    return resetToken;
+  }
+
+  async getPasswordResetTokenByToken(token: string): Promise<PasswordResetToken | undefined> {
+    return Array.from(this.passwordResetTokens.values()).find(
+      (resetToken) => resetToken.token === token && 
+                      resetToken.expiresAt > new Date() && 
+                      resetToken.usedAt === null
+    );
+  }
+
+  async markPasswordResetTokenAsUsed(token: string): Promise<PasswordResetToken | undefined> {
+    const resetToken = Array.from(this.passwordResetTokens.values()).find(
+      (rt) => rt.token === token
+    );
+    
+    if (!resetToken) return undefined;
+    
+    const updatedToken = { 
+      ...resetToken, 
+      usedAt: new Date() 
+    };
+    
+    this.passwordResetTokens.set(resetToken.id, updatedToken);
+    return updatedToken;
+  }
+
+  // Quotes methods
+  async getQuote(id: number): Promise<Quote | undefined> {
+    return this.quotes.get(id);
+  }
+
+  async getQuotesByContractor(contractorId: number): Promise<Quote[]> {
+    return Array.from(this.quotes.values()).filter(
+      (quote) => quote.contractorId === contractorId
+    );
+  }
+
+  async getQuotesByLandlord(landlordId: number): Promise<Quote[]> {
+    return Array.from(this.quotes.values()).filter(
+      (quote) => quote.landlordId === landlordId
+    );
+  }
+
+  async getQuotesByJob(jobId: number): Promise<Quote[]> {
+    return Array.from(this.quotes.values()).filter(
+      (quote) => quote.jobId === jobId
+    );
+  }
+
+  async createQuote(quote: InsertQuote): Promise<Quote> {
+    const id = this.currentQuoteId++;
+    const now = new Date();
+    const newQuote: Quote = {
+      ...quote,
+      id,
+      status: quote.status || "draft",
+      createdAt: now,
+      updatedAt: now,
+      viewedAt: null,
+      responseAt: null,
+      note: quote.note || null,
+      rejectionReason: null,
+      expiresAt: quote.expiresAt || null,
+      tax: quote.tax || null,
+      discount: quote.discount || null,
+      subtotal: quote.subtotal || 0,
+      total: quote.total || 0
+    };
+    this.quotes.set(id, newQuote);
+    return newQuote;
+  }
+
+  async updateQuote(id: number, updates: Partial<Quote>): Promise<Quote | undefined> {
+    const quote = this.quotes.get(id);
+    if (!quote) return undefined;
+    
+    const updatedQuote = { 
+      ...quote, 
+      ...updates, 
+      updatedAt: new Date() 
+    };
+    this.quotes.set(id, updatedQuote);
+    return updatedQuote;
+  }
+
+  async markQuoteAsViewed(id: number): Promise<Quote | undefined> {
+    const quote = this.quotes.get(id);
+    if (!quote) return undefined;
+    
+    if (quote.status === "sent" && !quote.viewedAt) {
+      const updatedQuote = { 
+        ...quote, 
+        status: "viewed" as const,
+        viewedAt: new Date(),
+        updatedAt: new Date() 
+      };
+      this.quotes.set(id, updatedQuote);
+      return updatedQuote;
+    }
+    
+    return quote;
+  }
+
+  async markQuoteAsAccepted(id: number): Promise<Quote | undefined> {
+    const quote = this.quotes.get(id);
+    if (!quote) return undefined;
+    
+    if (quote.status === "viewed" || quote.status === "sent") {
+      const now = new Date();
+      const updatedQuote = { 
+        ...quote, 
+        status: "accepted" as const,
+        responseAt: now,
+        updatedAt: now 
+      };
+      this.quotes.set(id, updatedQuote);
+      return updatedQuote;
+    }
+    
+    return quote;
+  }
+
+  async markQuoteAsRejected(id: number, reason?: string): Promise<Quote | undefined> {
+    const quote = this.quotes.get(id);
+    if (!quote) return undefined;
+    
+    if (quote.status === "viewed" || quote.status === "sent") {
+      const now = new Date();
+      const updatedQuote = { 
+        ...quote, 
+        status: "rejected" as const,
+        rejectionReason: reason || null,
+        responseAt: now,
+        updatedAt: now 
+      };
+      this.quotes.set(id, updatedQuote);
+      return updatedQuote;
+    }
+    
+    return quote;
+  }
+
+  async markQuoteAsRevised(id: number): Promise<Quote | undefined> {
+    const quote = this.quotes.get(id);
+    if (!quote) return undefined;
+    
+    const updatedQuote = { 
+      ...quote, 
+      status: "revised" as const,
+      updatedAt: new Date() 
+    };
+    this.quotes.set(id, updatedQuote);
+    return updatedQuote;
+  }
+
+  // Quote Line Items methods
+  async getQuoteLineItemsByQuote(quoteId: number): Promise<QuoteLineItem[]> {
+    return Array.from(this.quoteLineItems.values()).filter(
+      (lineItem) => lineItem.quoteId === quoteId
+    );
+  }
+
+  async createQuoteLineItem(lineItem: InsertQuoteLineItem): Promise<QuoteLineItem> {
+    const id = this.currentQuoteLineItemId++;
+    const newLineItem: QuoteLineItem = {
+      ...lineItem,
+      id,
+      description: lineItem.description || null,
+      quantity: lineItem.quantity || 1,
+      unitPrice: lineItem.unitPrice || 0,
+      total: lineItem.total || (lineItem.quantity || 1) * (lineItem.unitPrice || 0)
+    };
+    this.quoteLineItems.set(id, newLineItem);
+    return newLineItem;
+  }
+
+  async updateQuoteLineItem(id: number, updates: Partial<QuoteLineItem>): Promise<QuoteLineItem | undefined> {
+    const lineItem = this.quoteLineItems.get(id);
+    if (!lineItem) return undefined;
+    
+    const updatedLineItem = { 
+      ...lineItem, 
+      ...updates
+    };
+    
+    // Recalculate total if either quantity or unitPrice was updated
+    if (updates.quantity !== undefined || updates.unitPrice !== undefined) {
+      const quantity = updates.quantity !== undefined ? updates.quantity : lineItem.quantity;
+      const unitPrice = updates.unitPrice !== undefined ? updates.unitPrice : lineItem.unitPrice;
+      updatedLineItem.total = quantity * unitPrice;
+    }
+    
+    this.quoteLineItems.set(id, updatedLineItem);
+    return updatedLineItem;
+  }
+
+  async deleteQuoteLineItem(id: number): Promise<boolean> {
+    const exists = this.quoteLineItems.has(id);
+    if (exists) {
+      this.quoteLineItems.delete(id);
+      return true;
+    }
+    return false;
+  }
+
+  // Invoices methods
+  async getInvoice(id: number): Promise<Invoice | undefined> {
+    return this.invoices.get(id);
+  }
+
+  async getInvoicesByContractor(contractorId: number): Promise<Invoice[]> {
+    return Array.from(this.invoices.values()).filter(
+      (invoice) => invoice.contractorId === contractorId
+    );
+  }
+
+  async getInvoicesByLandlord(landlordId: number): Promise<Invoice[]> {
+    return Array.from(this.invoices.values()).filter(
+      (invoice) => invoice.landlordId === landlordId
+    );
+  }
+
+  async getInvoicesByJob(jobId: number): Promise<Invoice[]> {
+    return Array.from(this.invoices.values()).filter(
+      (invoice) => invoice.jobId === jobId
+    );
+  }
+
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const id = this.currentInvoiceId++;
+    const now = new Date();
+    const newInvoice: Invoice = {
+      ...invoice,
+      id,
+      status: invoice.status || "draft",
+      createdAt: now,
+      updatedAt: now,
+      viewedAt: null,
+      paidAt: null,
+      cancellationReason: null,
+      note: invoice.note || null,
+      tax: invoice.tax || null,
+      discount: invoice.discount || null,
+      subtotal: invoice.subtotal || 0,
+      total: invoice.total || 0,
+      paymentMethod: null,
+      paymentDetails: null
+    };
+    this.invoices.set(id, newInvoice);
+    return newInvoice;
+  }
+
+  async updateInvoice(id: number, updates: Partial<Invoice>): Promise<Invoice | undefined> {
+    const invoice = this.invoices.get(id);
+    if (!invoice) return undefined;
+    
+    const updatedInvoice = { 
+      ...invoice, 
+      ...updates, 
+      updatedAt: new Date() 
+    };
+    this.invoices.set(id, updatedInvoice);
+    return updatedInvoice;
+  }
+
+  async markInvoiceAsViewed(id: number): Promise<Invoice | undefined> {
+    const invoice = this.invoices.get(id);
+    if (!invoice) return undefined;
+    
+    if (invoice.status === "sent" && !invoice.viewedAt) {
+      const updatedInvoice = { 
+        ...invoice, 
+        status: "viewed" as const,
+        viewedAt: new Date(),
+        updatedAt: new Date() 
+      };
+      this.invoices.set(id, updatedInvoice);
+      return updatedInvoice;
+    }
+    
+    return invoice;
+  }
+
+  async markInvoiceAsPaid(id: number, paymentMethod: string, paymentDetails?: string): Promise<Invoice | undefined> {
+    const invoice = this.invoices.get(id);
+    if (!invoice) return undefined;
+    
+    if (invoice.status === "viewed" || invoice.status === "sent" || invoice.status === "overdue") {
+      const now = new Date();
+      const updatedInvoice = { 
+        ...invoice, 
+        status: "paid" as const,
+        paidAt: now,
+        updatedAt: now,
+        paymentMethod,
+        paymentDetails: paymentDetails || null
+      };
+      this.invoices.set(id, updatedInvoice);
+      return updatedInvoice;
+    }
+    
+    return invoice;
+  }
+
+  async markInvoiceAsOverdue(id: number): Promise<Invoice | undefined> {
+    const invoice = this.invoices.get(id);
+    if (!invoice) return undefined;
+    
+    if (invoice.status === "viewed" || invoice.status === "sent") {
+      const updatedInvoice = { 
+        ...invoice, 
+        status: "overdue" as const,
+        updatedAt: new Date() 
+      };
+      this.invoices.set(id, updatedInvoice);
+      return updatedInvoice;
+    }
+    
+    return invoice;
+  }
+
+  async markInvoiceAsCancelled(id: number, reason?: string): Promise<Invoice | undefined> {
+    const invoice = this.invoices.get(id);
+    if (!invoice) return undefined;
+    
+    if (invoice.status !== "paid" && invoice.status !== "cancelled") {
+      const updatedInvoice = { 
+        ...invoice, 
+        status: "cancelled" as const,
+        updatedAt: new Date(),
+        cancellationReason: reason || null
+      };
+      this.invoices.set(id, updatedInvoice);
+      return updatedInvoice;
+    }
+    
+    return invoice;
+  }
+
+  // Invoice Line Items methods
+  async getInvoiceLineItemsByInvoice(invoiceId: number): Promise<InvoiceLineItem[]> {
+    return Array.from(this.invoiceLineItems.values()).filter(
+      (lineItem) => lineItem.invoiceId === invoiceId
+    );
+  }
+
+  async createInvoiceLineItem(lineItem: InsertInvoiceLineItem): Promise<InvoiceLineItem> {
+    const id = this.currentInvoiceLineItemId++;
+    const newLineItem: InvoiceLineItem = {
+      ...lineItem,
+      id,
+      description: lineItem.description || null,
+      quantity: lineItem.quantity || 1,
+      unitPrice: lineItem.unitPrice || 0,
+      total: lineItem.total || (lineItem.quantity || 1) * (lineItem.unitPrice || 0)
+    };
+    this.invoiceLineItems.set(id, newLineItem);
+    return newLineItem;
+  }
+
+  async updateInvoiceLineItem(id: number, updates: Partial<InvoiceLineItem>): Promise<InvoiceLineItem | undefined> {
+    const lineItem = this.invoiceLineItems.get(id);
+    if (!lineItem) return undefined;
+    
+    const updatedLineItem = { 
+      ...lineItem, 
+      ...updates
+    };
+    
+    // Recalculate total if either quantity or unitPrice was updated
+    if (updates.quantity !== undefined || updates.unitPrice !== undefined) {
+      const quantity = updates.quantity !== undefined ? updates.quantity : lineItem.quantity;
+      const unitPrice = updates.unitPrice !== undefined ? updates.unitPrice : lineItem.unitPrice;
+      updatedLineItem.total = quantity * unitPrice;
+    }
+    
+    this.invoiceLineItems.set(id, updatedLineItem);
+    return updatedLineItem;
+  }
+
+  async deleteInvoiceLineItem(id: number): Promise<boolean> {
+    const exists = this.invoiceLineItems.has(id);
+    if (exists) {
+      this.invoiceLineItems.delete(id);
+      return true;
+    }
+    return false;
+  }
+}
+
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+
+  constructor() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // For production, always use memory store to avoid ESM compatibility issues
+    // with dynamic imports of 'pg' and connect-pg-simple
+    if (isProduction || !pool) {
+      console.log('Using memory store for sessions (production or missing pool)');
+      const MemoryStore = createMemoryStore(session);
+      this.sessionStore = new MemoryStore({
+        checkPeriod: 86400000 // prune expired entries every 24h
+      });
+      
+      console.log('To enable PostgreSQL session store in production, install connect-pg-simple-esm');
+      console.log('See PRODUCTION_DEPLOYMENT.md for more details');
+    } else {
+      // Initialize PostgreSQL session store for development
+      try {
+        console.log('Development mode: Using PostgreSQL session store');
+        const PostgresSessionStore = connectPg(session);
+        this.sessionStore = new PostgresSessionStore({
+          pool,
+          createTableIfMissing: true,
+          tableName: 'session', // Explicit table name
+          pruneSessionInterval: 60 * 15, // prune expired sessions every 15 minutes
+        });
+      } catch (err) {
+        console.error('Failed to initialize development PostgreSQL session store:', err);
+        // Fallback to memory store
+        const MemoryStore = createMemoryStore(session);
+        this.sessionStore = new MemoryStore({
+          checkPeriod: 86400000 // prune expired entries every 24h
+        });
+        console.warn('Using in-memory session store as fallback. Sessions will be lost on restart.');
+      }
+    }
+  }
+  
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    try {
+      console.log("Getting user by ID:", id);
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, id));
+      return user;
+    } catch (error) {
+      console.error("Error in getUser:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username.toLowerCase(), username.toLowerCase()));
+      return user;
+    } catch (error) {
+      console.error("Error in getUserByUsername:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    try {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email.toLowerCase(), email.toLowerCase()));
+      return user;
+    } catch (error) {
+      console.error("Error in getUserByEmail:", error);
+      return undefined;
+    }
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
+    try {
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updatedUser;
+    } catch (error) {
+      console.error("Error in updateUser:", error);
+      return undefined;
+    }
+  }
+
+  // Job methods
+  async getJob(id: number): Promise<Job | undefined> {
+    try {
+      const [job] = await db
+        .select()
+        .from(jobs)
+        .where(eq(jobs.id, id));
+      return job;
+    } catch (error) {
+      console.error("Error in getJob:", error);
+      return undefined;
+    }
+  }
+
+  async getJobsByLandlord(landlordId: number): Promise<Job[]> {
+    try {
+      const result = await db
+        .select()
+        .from(jobs)
+        .where(eq(jobs.landlordId, landlordId))
+        .orderBy(desc(jobs.createdAt));
+      
+      return result;
+    } catch (error) {
+      console.error("Error in getJobsByLandlord:", error);
+      return [];
+    }
+  }
+
+  async getAvailableJobs(): Promise<Job[]> {
+    try {
+      const result = await db
+        .select()
+        .from(jobs)
+        .where(eq(jobs.status, "open"))
+        .orderBy(desc(jobs.createdAt));
+      
+      return result;
+    } catch (error) {
+      console.error("Error in getAvailableJobs:", error);
+      return [];
+    }
+  }
+
+  async getAllJobs(): Promise<Job[]> {
+    try {
+      const result = await db
+        .select()
+        .from(jobs)
+        .orderBy(desc(jobs.createdAt));
+      
+      return result;
+    } catch (error) {
+      console.error("Error in getAllJobs:", error);
+      return [];
+    }
+  }
+
+  async getJobsByContractor(contractorId: number): Promise<Job[]> {
+    try {
+      const result = await db
+        .select()
+        .from(jobs)
+        .where(eq(jobs.contractorId, contractorId))
+        .orderBy(desc(jobs.createdAt));
+      
+      return result;
+    } catch (error) {
+      console.error("Error in getJobsByContractor:", error);
+      return [];
+    }
+  }
+
+  async createJob(job: InsertJob): Promise<Job> {
+    try {
+      const [newJob] = await db
+        .insert(jobs)
+        .values({
+          ...job,
+          status: job.status || "draft",
+          categoryTags: job.categoryTags || [],
+          images: job.images || [],
+          isUrgent: job.isUrgent || false,
+          progress: 0
+        })
+        .returning();
+      
+      return newJob;
+    } catch (error) {
+      console.error("Error in createJob:", error);
+      throw error;
+    }
+  }
+
+  async updateJob(id: number, updates: Partial<Job>): Promise<Job | undefined> {
+    try {
+      const [updatedJob] = await db
+        .update(jobs)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(jobs.id, id))
+        .returning();
+      
+      return updatedJob;
+    } catch (error) {
+      console.error("Error in updateJob:", error);
+      return undefined;
+    }
+  }
+
+  async deleteJob(id: number): Promise<boolean> {
+    try {
+      await db
+        .delete(jobs)
+        .where(eq(jobs.id, id));
+      
+      return true;
+    } catch (error) {
+      console.error("Error in deleteJob:", error);
+      return false;
+    }
+  }
+
+  async deleteAllJobs(): Promise<boolean> {
+    try {
+      await db
+        .delete(jobs);
+      
+      return true;
+    } catch (error) {
+      console.error("Error in deleteAllJobs:", error);
+      return false;
+    }
+  }
+  
+  // Quote methods
+  async getQuote(id: number): Promise<Quote | undefined> {
+    const [quote] = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.id, id));
+    return quote;
+  }
+
+  async getQuotesByContractor(contractorId: number): Promise<Quote[]> {
+    const result = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.contractorId, contractorId));
+    return result;
+  }
+
+  async getQuotesByLandlord(landlordId: number): Promise<Quote[]> {
+    const result = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.landlordId, landlordId));
+    return result;
+  }
+
+  async getQuotesByJob(jobId: number): Promise<Quote[]> {
+    const result = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.jobId, jobId));
+    return result;
+  }
+
+  async createQuote(quoteData: InsertQuote): Promise<Quote> {
+    const [quote] = await db
+      .insert(quotes)
+      .values({
+        ...quoteData,
+        status: quoteData.status || "draft",
+      })
+      .returning();
+    return quote;
+  }
+
+  async updateQuote(id: number, updates: Partial<Quote>): Promise<Quote | undefined> {
+    const [updatedQuote] = await db
+      .update(quotes)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(quotes.id, id))
+      .returning();
+    return updatedQuote;
+  }
+
+  async markQuoteAsViewed(id: number): Promise<Quote | undefined> {
+    const [updatedQuote] = await db
+      .update(quotes)
+      .set({
+        status: "viewed",
+        viewedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(quotes.id, id))
+      .returning();
+    return updatedQuote;
+  }
+
+  async markQuoteAsAccepted(id: number): Promise<Quote | undefined> {
+    const [updatedQuote] = await db
+      .update(quotes)
+      .set({
+        status: "accepted",
+        responseAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(quotes.id, id))
+      .returning();
+    return updatedQuote;
+  }
+
+  async markQuoteAsRejected(id: number, reason?: string): Promise<Quote | undefined> {
+    const [updatedQuote] = await db
+      .update(quotes)
+      .set({
+        status: "rejected",
+        rejectionReason: reason || null,
+        responseAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(quotes.id, id))
+      .returning();
+    return updatedQuote;
+  }
+
+  async markQuoteAsRevised(id: number): Promise<Quote | undefined> {
+    const [updatedQuote] = await db
+      .update(quotes)
+      .set({
+        status: "revised",
+        updatedAt: new Date()
+      })
+      .where(eq(quotes.id, id))
+      .returning();
+    return updatedQuote;
+  }
+
+  async getQuoteLineItemsByQuote(quoteId: number): Promise<QuoteLineItem[]> {
+    const result = await db
+      .select()
+      .from(quoteLineItems)
+      .where(eq(quoteLineItems.quoteId, quoteId))
+      .orderBy(quoteLineItems.sortOrder);
+    return result;
+  }
+
+  async createQuoteLineItem(lineItemData: InsertQuoteLineItem): Promise<QuoteLineItem> {
+    const [lineItem] = await db
+      .insert(quoteLineItems)
+      .values(lineItemData)
+      .returning();
+    return lineItem;
+  }
+
+  async updateQuoteLineItem(id: number, updates: Partial<QuoteLineItem>): Promise<QuoteLineItem | undefined> {
+    const [updatedLineItem] = await db
+      .update(quoteLineItems)
+      .set(updates)
+      .where(eq(quoteLineItems.id, id))
+      .returning();
+    return updatedLineItem;
+  }
+
+  async deleteQuoteLineItem(id: number): Promise<boolean> {
+    await db
+      .delete(quoteLineItems)
+      .where(eq(quoteLineItems.id, id));
+    return true;
+  }
+
+  // Invoice methods
+  async getInvoice(id: number): Promise<Invoice | undefined> {
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, id));
+    return invoice;
+  }
+
+  async getInvoicesByContractor(contractorId: number): Promise<Invoice[]> {
+    const result = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.contractorId, contractorId));
+    return result;
+  }
+
+  async getInvoicesByLandlord(landlordId: number): Promise<Invoice[]> {
+    const result = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.landlordId, landlordId));
+    return result;
+  }
+
+  async getInvoicesByJob(jobId: number): Promise<Invoice[]> {
+    const result = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.jobId, jobId));
+    return result;
+  }
+
+  async createInvoice(invoiceData: InsertInvoice): Promise<Invoice> {
+    const [invoice] = await db
+      .insert(invoices)
+      .values({
+        ...invoiceData,
+        status: invoiceData.status || "draft",
+      })
+      .returning();
+    return invoice;
+  }
+
+  async updateInvoice(id: number, updates: Partial<Invoice>): Promise<Invoice | undefined> {
+    const [updatedInvoice] = await db
+      .update(invoices)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updatedInvoice;
+  }
+
+  async markInvoiceAsViewed(id: number): Promise<Invoice | undefined> {
+    const [updatedInvoice] = await db
+      .update(invoices)
+      .set({
+        status: "viewed",
+        viewedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updatedInvoice;
+  }
+
+  async markInvoiceAsPaid(id: number, paymentMethod: string, paymentDetails?: string): Promise<Invoice | undefined> {
+    const [updatedInvoice] = await db
+      .update(invoices)
+      .set({
+        status: "paid",
+        paidAt: new Date(),
+        paymentMethod,
+        paymentDetails: paymentDetails || null,
+        updatedAt: new Date()
+      })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updatedInvoice;
+  }
+
+  async markInvoiceAsOverdue(id: number): Promise<Invoice | undefined> {
+    const [updatedInvoice] = await db
+      .update(invoices)
+      .set({
+        status: "overdue",
+        updatedAt: new Date()
+      })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updatedInvoice;
+  }
+
+  async markInvoiceAsCancelled(id: number, reason?: string): Promise<Invoice | undefined> {
+    const [updatedInvoice] = await db
+      .update(invoices)
+      .set({
+        status: "cancelled",
+        cancellationReason: reason || null,
+        updatedAt: new Date()
+      })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updatedInvoice;
+  }
+
+  async getInvoiceLineItemsByInvoice(invoiceId: number): Promise<InvoiceLineItem[]> {
+    const result = await db
+      .select()
+      .from(invoiceLineItems)
+      .where(eq(invoiceLineItems.invoiceId, invoiceId))
+      .orderBy(invoiceLineItems.sortOrder);
+    return result;
+  }
+
+  async createInvoiceLineItem(lineItemData: InsertInvoiceLineItem): Promise<InvoiceLineItem> {
+    const [lineItem] = await db
+      .insert(invoiceLineItems)
+      .values(lineItemData)
+      .returning();
+    return lineItem;
+  }
+
+  async updateInvoiceLineItem(id: number, updates: Partial<InvoiceLineItem>): Promise<InvoiceLineItem | undefined> {
+    const [updatedLineItem] = await db
+      .update(invoiceLineItems)
+      .set(updates)
+      .where(eq(invoiceLineItems.id, id))
+      .returning();
+    return updatedLineItem;
+  }
+
+  async deleteInvoiceLineItem(id: number): Promise<boolean> {
+    await db
+      .delete(invoiceLineItems)
+      .where(eq(invoiceLineItems.id, id));
+    return true;
+  }
+
+  // User management methods
+  async getUser(id: number): Promise<User | undefined> {
+    try {
+      console.log('Getting user by ID:', id);
+      
+      // Use raw SQL query to properly handle column name mappings
+      const query = `
+        SELECT 
+          id, 
+          username, 
+          password, 
+          email, 
+          full_name AS "fullName", 
+          user_type AS "userType", 
+          phone,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt"
+        FROM users
+        WHERE id = $1
+      `;
+      
+      const { rows } = await pool.query(query, [id]);
+      
+      if (rows.length > 0) {
+        const user = rows[0];
+        console.log('Found user by ID:', {
+          ...user,
+          password: '[REDACTED]'
+        });
+        return user;
+      } else {
+        console.log('No user found with ID:', id);
+        return undefined;
+      }
+    } catch (error) {
+      console.error('Error in getUser:', error);
+      return undefined;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      console.log('Getting user by username:', username);
+      
+      // Use raw SQL query to properly handle column name mappings
+      const query = `
+        SELECT 
+          id, 
+          username, 
+          password, 
+          email, 
+          full_name AS "fullName", 
+          user_type AS "userType", 
+          phone,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt"
+        FROM users
+        WHERE LOWER(username) = LOWER($1)
+      `;
+      
+      const { rows } = await pool.query(query, [username]);
+      
+      if (rows.length > 0) {
+        const user = rows[0];
+        console.log('Found user by username:', {
+          ...user,
+          password: '[REDACTED]'
+        });
+        return user;
+      } else {
+        console.log('No user found with username:', username);
+        return undefined;
+      }
+    } catch (error) {
+      console.error('Error in getUserByUsername:', error);
+      return undefined;
+    }
+  }
+  
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    try {
+      console.log('Getting user by email:', email);
+      
+      // Use raw SQL query to properly handle column name mappings
+      const query = `
+        SELECT 
+          id, 
+          username, 
+          password, 
+          email, 
+          full_name AS "fullName", 
+          user_type AS "userType", 
+          phone,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt"
+        FROM users
+        WHERE LOWER(email) = LOWER($1)
+      `;
+      
+      const { rows } = await pool.query(query, [email]);
+      
+      if (rows.length > 0) {
+        const user = rows[0];
+        console.log('Found user by email:', {
+          ...user,
+          password: '[REDACTED]'
+        });
+        return user;
+      } else {
+        console.log('No user found with email:', email);
+        return undefined;
+      }
+    } catch (error) {
+      console.error('Error in getUserByEmail:', error);
+      return undefined;
+    }
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    try {
+      // Log what we received, with better detail for debugging
+      console.log('Creating user with data:', {
+        ...insertUser, 
+        password: '[REDACTED]'
+      });
+      
+      // We will get traditional camelCase fields from the InsertUser interface.
+      // We need to map them to snake_case field names for PostgreSQL
+      // Use the raw SQL query approach to avoid ORM mapping issues
+      const query = `
+        INSERT INTO users (
+          username, 
+          password, 
+          email, 
+          full_name, 
+          user_type, 
+          phone, 
+          created_at, 
+          updated_at
+        ) 
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8
+        )
+        RETURNING 
+          id, 
+          username, 
+          password, 
+          email, 
+          full_name AS "fullName", 
+          user_type AS "userType", 
+          phone,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt"
+      `;
+      
+      const now = new Date();
+      const values = [
+        insertUser.username,
+        insertUser.password,
+        insertUser.email,
+        insertUser.fullName,
+        insertUser.userType, 
+        insertUser.phone || null,
+        now,
+        now
+      ];
+      
+      console.log('Executing SQL query with values (password redacted)');
+      
+      // Execute the query directly using the pool from db.ts
+      const { rows } = await pool.query(query, values);
+      const rawUser = rows[0];
+      
+      // The query returns the fields already correctly mapped from snake_case to camelCase
+      const user: User = {
+        id: rawUser.id,
+        username: rawUser.username,
+        password: rawUser.password,
+        email: rawUser.email,
+        fullName: rawUser.fullName,
+        userType: rawUser.userType,
+        phone: rawUser.phone,
+        createdAt: rawUser.createdAt,
+        updatedAt: rawUser.updatedAt
+      };
+      return user;
+    } catch (error) {
+      console.error('Error in createUser:', error);
+      throw error;
+    }
+  }
+  
+  async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
+    try {
+      console.log('Updating user with ID:', id);
+      
+      // Build SQL update statement dynamically based on which fields need updating
+      let updateFields = [];
+      let updateValues = [];
+      let valueIndex = 1;
+      
+      // Keep track of fields that need updating
+      if (updates.username) {
+        updateFields.push(`username = $${valueIndex}`);
+        updateValues.push(updates.username);
+        valueIndex++;
+      }
+      
+      if (updates.password) {
+        updateFields.push(`password = $${valueIndex}`);
+        updateValues.push(updates.password);
+        valueIndex++;
+      }
+      
+      if (updates.email) {
+        updateFields.push(`email = $${valueIndex}`);
+        updateValues.push(updates.email);
+        valueIndex++;
+      }
+      
+      if (updates.fullName) {
+        updateFields.push(`full_name = $${valueIndex}`);
+        updateValues.push(updates.fullName);
+        valueIndex++;
+      }
+      
+      if (updates.userType) {
+        updateFields.push(`user_type = $${valueIndex}`);
+        updateValues.push(updates.userType);
+        valueIndex++;
+      }
+      
+      if (updates.phone !== undefined) {
+        updateFields.push(`phone = $${valueIndex}`);
+        updateValues.push(updates.phone);
+        valueIndex++;
+      }
+      
+      // Always update the updated_at timestamp
+      updateFields.push(`updated_at = $${valueIndex}`);
+      updateValues.push(new Date());
+      valueIndex++;
+      
+      // If no fields to update, just return the current user
+      if (updateFields.length === 1 && updateFields[0].startsWith('updated_at')) {
+        // Only updating timestamp, so get the current user
+        return this.getUser(id);
+      }
+      
+      // Build the complete SQL query
+      const query = `
+        UPDATE users
+        SET ${updateFields.join(', ')}
+        WHERE id = $${valueIndex}
+        RETURNING 
+          id, 
+          username, 
+          password, 
+          email, 
+          full_name AS "fullName", 
+          user_type AS "userType", 
+          phone,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt"
+      `;
+      
+      // Add user ID as the last parameter
+      updateValues.push(id);
+      
+      console.log('Executing update SQL query (password redacted if present)');
+      
+      // Execute the query
+      const { rows } = await pool.query(query, updateValues);
+      
+      if (rows.length > 0) {
+        const user = rows[0];
+        console.log('Updated user:', {
+          ...user,
+          password: '[REDACTED]'
+        });
+        return user;
+      } else {
+        console.log('No user found with ID:', id);
+        return undefined;
+      }
+    } catch (error) {
+      console.error('Error in updateUser:', error);
+      return undefined;
+    }
+  }
+
+  // Landlord profile methods
+  async getLandlordProfile(userId: number): Promise<LandlordProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(landlordProfiles)
+      .where(eq(landlordProfiles.userId, userId));
+    return profile;
+  }
+
+  async createLandlordProfile(profile: InsertLandlordProfile): Promise<LandlordProfile> {
+    const defaultProfile = {
+      ...profile,
+      walletBalance: 0,
+      averageRating: null,
+      totalRatings: 0,
+      properties: profile.properties || [],
+      bio: profile.bio || null
+    };
+    const [landlordProfile] = await db
+      .insert(landlordProfiles)
+      .values(defaultProfile)
+      .returning();
+    return landlordProfile;
+  }
+
+  async updateLandlordProfile(userId: number, updates: Partial<LandlordProfile>): Promise<LandlordProfile | undefined> {
+    const [updatedProfile] = await db
+      .update(landlordProfiles)
+      .set(updates)
+      .where(eq(landlordProfiles.userId, userId))
+      .returning();
+    return updatedProfile;
+  }
+
+  // Contractor profile methods
+  async getContractorProfile(userId: number): Promise<ContractorProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(contractorProfiles)
+      .where(eq(contractorProfiles.userId, userId));
+    return profile;
+  }
+
+  async createContractorProfile(profile: InsertContractorProfile): Promise<ContractorProfile> {
+    const defaultProfile = {
+      userId: profile.userId,
+      walletBalance: 0,
+      averageRating: null,
+      totalRatings: 0,
+      skills: profile.skills || [],
+      serviceArea: profile.serviceArea || {},
+      bio: profile.bio || null,
+      background: profile.background || null,
+      availability: profile.availability || null,
+      city: profile.city || null,
+      state: profile.state || null,
+      serviceRadius: profile.serviceRadius || 25,
+      serviceZipCodes: profile.serviceZipCodes || []
+    };
+    const [contractorProfile] = await db
+      .insert(contractorProfiles)
+      .values(defaultProfile)
+      .returning();
+    return contractorProfile;
+  }
+
+  async updateContractorProfile(userId: number, updates: Partial<ContractorProfile>): Promise<ContractorProfile | undefined> {
+    // Make a copy of updates to avoid mutating the input
+    const updatesToApply = { ...updates };
+    
+    // Special handling for service area deletion
+    if ('serviceAreas' in updatesToApply && Array.isArray(updatesToApply.serviceAreas) && updatesToApply.serviceAreas.length === 0) {
+      // If serviceAreas is empty array, also clear the legacy serviceArea field
+      updatesToApply.serviceArea = null;
+    } 
+    else if ('serviceAreaLat' in updatesToApply && updatesToApply.serviceAreaLat === null) {
+      // If serviceAreaLat is explicitly set to null, clear the legacy serviceArea field
+      updatesToApply.serviceArea = null;
+    }
+    
+    // Handle the update with our modified updates object
+    const [updatedProfile] = await db
+      .update(contractorProfiles)
+      .set(updatesToApply)
+      .where(eq(contractorProfiles.userId, userId))
+      .returning();
+    
+    return updatedProfile;
+  }
+
+  // Job methods
+  async getJob(id: number): Promise<Job | undefined> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job;
+  }
+
+  async getJobsByLandlord(landlordId: number): Promise<Job[]> {
+    return db.select().from(jobs).where(eq(jobs.landlordId, landlordId));
+  }
+
+  async getAvailableJobs(): Promise<Job[]> {
+    return db.select().from(jobs).where(eq(jobs.status, "open"));
+  }
+  
+  async getAllJobs(): Promise<Job[]> {
+    return db.select().from(jobs);
+  }
+
+  async getJobsByContractor(contractorId: number): Promise<Job[]> {
+    // Get jobs where the contractor is directly assigned
+    const directJobs = await db.select().from(jobs).where(eq(jobs.contractorId, contractorId));
+    
+    // Get accepted bids for this contractor
+    const acceptedBids = await db
+      .select()
+      .from(bids)
+      .where(and(
+        eq(bids.contractorId, contractorId),
+        eq(bids.status, "accepted")
+      ));
+    
+    // If no accepted bids, return only directly assigned jobs
+    if (acceptedBids.length === 0) {
+      return directJobs;
+    }
+    
+    // Get job IDs from accepted bids
+    const acceptedJobIds = acceptedBids.map(bid => bid.jobId);
+    
+    // Get jobs from accepted bids
+    const bidJobs = await db
+      .select()
+      .from(jobs)
+      .where(inArray(jobs.id, acceptedJobIds));
+    
+    // Combine both sets of jobs and remove duplicates
+    const allJobs = [...directJobs];
+    
+    // Add jobs from bids only if they're not already in the list
+    for (const job of bidJobs) {
+      if (!allJobs.some(existingJob => existingJob.id === job.id)) {
+        allJobs.push(job);
+      }
+    }
+    
+    return allJobs;
+  }
+
+  async createJob(job: InsertJob): Promise<Job> {
+    const now = new Date();
+    
+    // Ensure we're only using valid fields expected by the schema
+    const defaultJob = {
+      title: job.title,
+      description: job.description,
+      landlordId: job.landlordId,
+      location: job.location,
+      status: "draft" as const, // The "as const" tells TypeScript this is a specific literal value
+      pricingType: job.pricingType || "fixed" as const,
+      categoryTags: job.categoryTags || [],
+      images: job.images || [],
+      budget: job.budget || null,
+      startDate: job.startDate || null,
+      createdAt: now,
+      updatedAt: now,
+      completionDate: null,
+      contractorId: null
+    };
+    
+    const [newJob] = await db.insert(jobs).values([defaultJob]).returning();
+    return newJob;
+  }
+
+  async updateJob(id: number, updates: Partial<Job>): Promise<Job | undefined> {
+    const [updatedJob] = await db
+      .update(jobs)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(jobs.id, id))
+      .returning();
+    return updatedJob;
+  }
+  
+  async deleteJob(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(jobs)
+        .where(eq(jobs.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error in deleteJob:', error);
+      return false;
+    }
+  }
+  
+  async deleteAllJobs(): Promise<boolean> {
+    try {
+      await db.delete(jobs);
+      return true;
+    } catch (error) {
+      console.error('Error in deleteAllJobs:', error);
+      return false;
+    }
+  }
+
+  // Bid methods
+  async getBid(id: number): Promise<Bid | undefined> {
+    const [bid] = await db.select().from(bids).where(eq(bids.id, id));
+    return bid;
+  }
+
+  async getBidsForJob(jobId: number): Promise<Bid[]> {
+    return db.select().from(bids).where(eq(bids.jobId, jobId));
+  }
+  
+  async getBidCountForJob(jobId: number): Promise<number> {
+    const result = await db.select({ count: count() }).from(bids).where(eq(bids.jobId, jobId));
+    return result[0]?.count || 0;
+  }
+
+  async getBidsByContractor(contractorId: number): Promise<Bid[]> {
+    return db.select().from(bids).where(eq(bids.contractorId, contractorId));
+  }
+
+  async createBid(bid: InsertBid): Promise<Bid> {
+    const now = new Date();
+    
+    // Ensure we're only using valid fields expected by the schema
+    const defaultBid = {
+      contractorId: bid.contractorId,
+      jobId: bid.jobId,
+      amount: bid.amount,
+      proposal: bid.proposal,
+      status: "pending" as const, // The "as const" tells TypeScript this is a specific literal value
+      timeEstimate: bid.timeEstimate || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    
+    const [newBid] = await db.insert(bids).values([defaultBid]).returning();
+    return newBid;
+  }
+
+  async updateBid(id: number, updates: Partial<Bid>): Promise<Bid | undefined> {
+    const [updatedBid] = await db
+      .update(bids)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(bids.id, id))
+      .returning();
+    return updatedBid;
+  }
+  
+  async deleteBid(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(bids)
+        .where(eq(bids.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error in deleteBid:', error);
+      return false;
+    }
+  }
+  
+  async deleteAllBids(): Promise<boolean> {
+    try {
+      await db.delete(bids);
+      return true;
+    } catch (error) {
+      console.error('Error in deleteAllBids:', error);
+      return false;
+    }
+  }
+
+  // Transaction methods
+  async getTransaction(id: number): Promise<Transaction | undefined> {
+    const [transaction] = await db.select().from(transactions).where(eq(transactions.id, id));
+    return transaction;
+  }
+
+  async getTransactionsByUser(userId: number): Promise<Transaction[]> {
+    return db.select().from(transactions).where(eq(transactions.userId, userId));
+  }
+
+  async getTransactionsByJob(jobId: number): Promise<Transaction[]> {
+    return db.select().from(transactions).where(eq(transactions.jobId, jobId));
+  }
+
+  async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
+    const defaultTransaction = {
+      ...transaction,
+      createdAt: new Date(),
+      description: transaction.description || null,
+      jobId: transaction.jobId || null,
+      reference: transaction.reference || null
+    };
+    const [newTransaction] = await db.insert(transactions).values(defaultTransaction).returning();
+    return newTransaction;
+  }
+
+  // Chat methods
+  async getChatRoom(id: number): Promise<any | undefined> {
+    const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, id));
+    return room;
+  }
+
+  async getChatRoomsByUser(userId: number): Promise<any[]> {
+    // Get all chat room IDs where the user is a participant
+    const participants = await db
+      .select()
+      .from(chatParticipants)
+      .where(eq(chatParticipants.userId, userId));
+    
+    if (participants.length === 0) return [];
+    
+    const chatRoomIds = participants.map(p => p.chatRoomId);
+    
+    // Get all chat rooms for these IDs
+    return db
+      .select()
+      .from(chatRooms)
+      .where(
+        chatRoomIds.map(id => eq(chatRooms.id, id)).reduce((acc, condition) => acc || condition)
+      );
+  }
+
+  async getChatRoomByJob(jobId: number): Promise<any | undefined> {
+    const [room] = await db.select().from(chatRooms).where(eq(chatRooms.jobId, jobId));
+    return room;
+  }
+
+  async createChatRoom(jobId: number): Promise<any> {
+    const [room] = await db
+      .insert(chatRooms)
+      .values({
+        jobId,
+        createdAt: new Date(),
+      })
+      .returning();
+    return room;
+  }
+
+  async addParticipantToChat(chatRoomId: number, userId: number): Promise<any> {
+    const [participant] = await db
+      .insert(chatParticipants)
+      .values({
+        chatRoomId,
+        userId,
+        lastRead: new Date(),
+      })
+      .returning();
+    return participant;
+  }
+
+  async getMessages(chatRoomId: number): Promise<Message[]> {
+    return db
+      .select()
+      .from(messages)
+      .where(eq(messages.chatRoomId, chatRoomId))
+      .orderBy(messages.createdAt);
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const defaultMessage = {
+      ...message,
+      type: message.type || "text",
+      createdAt: new Date(),
+    };
+    const [newMessage] = await db.insert(messages).values(defaultMessage).returning();
+    return newMessage;
+  }
+
+  // Review methods
+  async getReview(id: number): Promise<Review | undefined> {
+    const [review] = await db.select().from(reviews).where(eq(reviews.id, id));
+    return review;
+  }
+
+  async getReviewsByJob(jobId: number): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.jobId, jobId));
+  }
+
+  async getReviewsByReviewer(reviewerId: number): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.reviewerId, reviewerId));
+  }
+
+  async getReviewsByReviewee(revieweeId: number): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.revieweeId, revieweeId));
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const defaultReview = {
+      ...review,
+      comment: review.comment || null,
+      createdAt: new Date(),
+    };
+    const [newReview] = await db.insert(reviews).values(defaultReview).returning();
+    
+    // Update the average rating for the reviewee
+    const user = await this.getUser(review.revieweeId);
+    if (user) {
+      if (user.userType === "landlord") {
+        const landlordProfile = await this.getLandlordProfile(user.id);
+        if (landlordProfile) {
+          const currentTotalRatings = landlordProfile.totalRatings || 0;
+          const currentRating = landlordProfile.averageRating || 0;
+          
+          const newTotalRatings = currentTotalRatings + 1;
+          const newRating = ((currentRating * currentTotalRatings) + review.rating) / newTotalRatings;
+          
+          await this.updateLandlordProfile(user.id, {
+            averageRating: newRating,
+            totalRatings: newTotalRatings,
+          });
+        }
+      } else if (user.userType === "contractor") {
+        const contractorProfile = await this.getContractorProfile(user.id);
+        if (contractorProfile) {
+          const currentTotalRatings = contractorProfile.totalRatings || 0;
+          const currentRating = contractorProfile.averageRating || 0;
+          
+          const newTotalRatings = currentTotalRatings + 1;
+          const newRating = ((currentRating * currentTotalRatings) + review.rating) / newTotalRatings;
+          
+          await this.updateContractorProfile(user.id, {
+            averageRating: newRating,
+            totalRatings: newTotalRatings,
+          });
+        }
+      }
+    }
+    
+    return newReview;
+  }
+
+  // Waitlist methods (Legacy)
+  async createWaitlistEntry(entry: InsertWaitlistEntry): Promise<WaitlistEntry> {
+    const [waitlistEntry] = await db
+      .insert(waitlistEntries)
+      .values({
+        ...entry,
+        createdAt: new Date()
+      })
+      .returning();
+    return waitlistEntry;
+  }
+
+  async getWaitlistEntryByEmail(email: string): Promise<WaitlistEntry | undefined> {
+    // Using SQL directly for case-insensitive comparison
+    const query = `
+      SELECT * FROM waitlist_entries
+      WHERE LOWER(email) = LOWER($1)
+    `;
+    
+    const { rows } = await pool.query(query, [email]);
+    return rows.length > 0 ? rows[0] : undefined;
+  }
+
+  async getWaitlistEntries(): Promise<WaitlistEntry[]> {
+    return db.select().from(waitlistEntries);
+  }
+
+  // Password Reset methods
+  async createPasswordResetToken(userId: number, token: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const [resetToken] = await db
+      .insert(passwordResetTokens)
+      .values({
+        userId,
+        token,
+        expiresAt,
+        createdAt: new Date(),
+        usedAt: null
+      })
+      .returning();
+    return resetToken;
+  }
+
+  async getPasswordResetTokenByToken(token: string): Promise<PasswordResetToken | undefined> {
+    const [resetToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.token, token),
+          db.sql`${passwordResetTokens.expiresAt} > NOW()`,
+          db.sql`${passwordResetTokens.usedAt} IS NULL`
+        )
+      );
+    return resetToken;
+  }
+
+  async markPasswordResetTokenAsUsed(token: string): Promise<PasswordResetToken | undefined> {
+    const [updatedToken] = await db
+      .update(passwordResetTokens)
+      .set({
+        usedAt: new Date()
+      })
+      .where(eq(passwordResetTokens.token, token))
+      .returning();
+    return updatedToken;
+  }
+}
+
+// Use DatabaseStorage with the Postgres connection
+export const storage = new DatabaseStorage();

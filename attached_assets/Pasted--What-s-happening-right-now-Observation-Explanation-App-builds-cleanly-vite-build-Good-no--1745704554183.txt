@@ -1,0 +1,117 @@
+🔥 What's happening right now:
+
+Observation	Explanation
+App builds cleanly (vite build)	✅ Good — no build issues
+App starts in production mode (NODE_ENV=production)	✅ Correct
+Database connection test fails (Console request failed: endpoint is disabled)	❌ Database still trying to use a Neon/WebSocket pool somewhere
+Login fails with "User not found"	❌ Login lookup is still trying to use the wrong database client
+Session ID is created but Session user: undefined	✅ Session cookie is being created, but user info is not stored because login fails
+🛑 Real problem now:
+You still have part of your code (specifically drizzle-orm session/login queries)
+using a Neon serverless WebSocket client instead of TCP Postgres.
+
+That’s why login always fails with:
+
+pgsql
+Copy
+Edit
+Direct login failed: User not found with email/username: contractor 10
+and
+
+vbnet
+Copy
+Edit
+Error getting user by email: error: Console request failed: endpoint is disabled
+🛠 How to fix:
+✅ 1. Create a totally separate database connection for login/auth queries.
+
+✅ 2. Manually wire login to use a TCP SSL Postgres pg.Pool, not any drizzle prebuilt database.
+
+✅ 3. Force session creation based on your own SQL queries, not drizzle-orm serverless sessions.
+
+📋 Production-Ready Login Flow
+Here’s your corrected professional flow:
+
+📂 src/auth-db.ts
+typescript
+Copy
+Edit
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres'; // drizzle for TCP SSL Postgres
+
+const authPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+const authDb = drizzle(authPool);
+
+export { authDb };
+📂 src/routes/login.ts
+typescript
+Copy
+Edit
+import { Request, Response } from 'express';
+import { authDb } from '../auth-db';
+import { users } from '../schema';
+import { eq } from 'drizzle-orm'; // condition builder
+
+export const directLogin = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  try {
+    const foundUsers = await authDb
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+
+    if (foundUsers.length === 0) {
+      console.warn(`Login failed: no user found with email: ${email}`);
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const user = foundUsers[0];
+
+    if (user.password !== password) { // plaintext match for now
+      console.warn(`Login failed: wrong password for ${email}`);
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    req.session.userId = user.id;
+    console.log(`User ${email} logged in successfully.`);
+
+    return res.status(200).json({ message: 'Login successful', userId: user.id });
+
+  } catch (error) {
+    console.error('🚨 Login error:', error);
+    return res.status(500).json({ message: 'Server error during login' });
+  }
+};
+✅ No more console request failed.
+✅ TCP database connection for login.
+✅ Sessions will have real user IDs.
+
+🛡 Bonus: Middleware to Check If Logged In
+In case you want "Protect this route" type logic:
+
+typescript
+Copy
+Edit
+import { Request, Response, NextFunction } from 'express';
+
+export const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
+  if (req.session.userId) {
+    next();
+  } else {
+    res.status(401).json({ message: 'Not authenticated' });
+  }
+};
+Usage:
+
+typescript
+Copy
+Edit
+app.get('/api/protected-route', isAuthenticated, (req, res) => {
+  res.json({ message: 'You are authenticated!' });
+});
+✅ Protects any sensitive endpoint automatically.

@@ -1,0 +1,16 @@
+run = "npm run start"
+
+[nix]
+channel = "stable"
+
+[env]
+NODE_ENV = "production"
+DATABASE_URL = "your_database_url_here"
+SESSION_SECRET = "your_session_secret_here"
+
+[deployment]
+startCommand = "npm run start"
+healthcheckPath = "/health"
+healthcheckTimeout = 600
+restartPolicyType = "always"
+restartPolicyMaxRetries = 10

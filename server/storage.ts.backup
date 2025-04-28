@@ -1,0 +1,1150 @@
+import { 
+  users, type User, type InsertUser, 
+  waitlistEntries, type WaitlistEntry, type InsertWaitlistEntry,
+  landlordProfiles, type LandlordProfile, type InsertLandlordProfile,
+  contractorProfiles, type ContractorProfile, type InsertContractorProfile,
+  jobs, type Job, type InsertJob,
+  bids, type Bid, type InsertBid,
+  transactions, type Transaction, type InsertTransaction,
+  chatRooms, chatParticipants, messages, type Message, type InsertMessage,
+  reviews, type Review, type InsertReview,
+  passwordResetTokens, type PasswordResetToken, type InsertPasswordResetToken,
+  quotes, type Quote, type InsertQuote,
+  quoteLineItems, type QuoteLineItem, type InsertQuoteLineItem,
+  invoices, type Invoice, type InsertInvoice,
+  invoiceLineItems, type InvoiceLineItem, type InsertInvoiceLineItem
+} from "@shared/schema";
+import { authDb } from "./auth-db";
+import { eq, and, desc, inArray, count, sql } from "drizzle-orm";
+import session from "express-session";
+import createMemoryStore from "memorystore";
+import { Pool } from 'pg';
+// Note: We import connect-pg-simple dynamically inside the production setup method
+// because it's a CommonJS module and requires special handling
+
+// Create a dedicated TCP/SSL pool for session store that is always safe for production
+// This ensures we're never using the Neon serverless WebSocket driver for session operations
+const pgSessionPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 10, // Smaller pool just for sessions
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
+
+// IStorage interface with all CRUD methods
+export interface IStorage {
+  // Session store
+  sessionStore: session.Store;
+  
+  // User management
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, updates: Partial<User>): Promise<User | undefined>;
+  
+  // Landlord profiles
+  getLandlordProfile(userId: number): Promise<LandlordProfile | undefined>;
+  createLandlordProfile(profile: InsertLandlordProfile): Promise<LandlordProfile>;
+  updateLandlordProfile(userId: number, updates: Partial<LandlordProfile>): Promise<LandlordProfile | undefined>;
+  
+  // Contractor profiles
+  getContractorProfile(userId: number): Promise<ContractorProfile | undefined>;
+  createContractorProfile(profile: InsertContractorProfile): Promise<ContractorProfile>;
+  updateContractorProfile(userId: number, updates: Partial<ContractorProfile>): Promise<ContractorProfile | undefined>;
+  getAllContractorProfiles(): Promise<ContractorProfile[]>;
+  
+  // Jobs
+  getJob(id: number): Promise<Job | undefined>;
+  getJobsByLandlord(landlordId: number): Promise<Job[]>;
+  getAvailableJobs(): Promise<Job[]>;
+  getAllJobs(): Promise<Job[]>;
+  getJobsByContractor(contractorId: number): Promise<Job[]>;
+  createJob(job: InsertJob): Promise<Job>;
+  updateJob(id: number, updates: Partial<Job>): Promise<Job | undefined>;
+  
+  // Bids
+  getBid(id: number): Promise<Bid | undefined>;
+  getBidsByJob(jobId: number): Promise<Bid[]>;
+  getBidsByContractor(contractorId: number): Promise<Bid[]>;
+  getBidByJobAndContractor(jobId: number, contractorId: number): Promise<Bid | undefined>;
+  createBid(bid: InsertBid): Promise<Bid>;
+  updateBid(id: number, updates: Partial<Bid>): Promise<Bid | undefined>;
+  
+  // Transactions
+  getTransaction(id: number): Promise<Transaction | undefined>;
+  getTransactionsByUser(userId: number): Promise<Transaction[]>;
+  createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+  updateTransaction(id: number, updates: Partial<Transaction>): Promise<Transaction | undefined>;
+  
+  // Chat system
+  getChatRoom(id: number): Promise<any>;
+  getChatRoomByJob(jobId: number): Promise<any>;
+  createChatRoom(jobId: number, participants: number[]): Promise<any>;
+  getChatRoomParticipants(chatRoomId: number): Promise<any[]>;
+  addChatRoomParticipant(chatRoomId: number, userId: number): Promise<any>;
+  getChatMessages(chatRoomId: number): Promise<any[]>;
+  createChatMessage(message: InsertMessage): Promise<Message>;
+  getUnreadMessageCount(userId: number): Promise<number>;
+  markMessagesAsRead(chatRoomId: number, userId: number): Promise<void>;
+  
+  // Reviews
+  getReview(id: number): Promise<Review | undefined>;
+  getReviewsByUser(userId: number): Promise<Review[]>;
+  getReviewsByReviewer(reviewerId: number): Promise<Review[]>;
+  createReview(review: InsertReview): Promise<Review>;
+  
+  // Password reset
+  createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken>;
+  getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
+  deletePasswordResetToken(token: string): Promise<boolean>;
+  
+  // Waitlist
+  addToWaitlist(entry: InsertWaitlistEntry): Promise<WaitlistEntry>;
+  getWaitlistEntries(): Promise<WaitlistEntry[]>;
+  
+  // Quotes
+  getQuote(id: number): Promise<Quote | undefined>;
+  getQuotesByLandlord(landlordId: number): Promise<Quote[]>;
+  getQuotesByContractor(contractorId: number): Promise<Quote[]>;
+  getQuoteByJob(jobId: number): Promise<Quote | undefined>;
+  createQuote(quote: InsertQuote): Promise<Quote>;
+  updateQuote(id: number, updates: Partial<Quote>): Promise<Quote | undefined>;
+  deleteQuote(id: number): Promise<boolean>;
+  
+  // Quote line items
+  getQuoteLineItems(quoteId: number): Promise<QuoteLineItem[]>;
+  createQuoteLineItem(lineItem: InsertQuoteLineItem): Promise<QuoteLineItem>;
+  updateQuoteLineItem(id: number, updates: Partial<QuoteLineItem>): Promise<QuoteLineItem | undefined>;
+  deleteQuoteLineItem(id: number): Promise<boolean>;
+  
+  // Invoices
+  getInvoice(id: number): Promise<Invoice | undefined>;
+  getInvoicesByLandlord(landlordId: number): Promise<Invoice[]>;
+  getInvoicesByContractor(contractorId: number): Promise<Invoice[]>;
+  getInvoiceByJob(jobId: number): Promise<Invoice | undefined>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoice(id: number, updates: Partial<Invoice>): Promise<Invoice | undefined>;
+  deleteInvoice(id: number): Promise<boolean>;
+  
+  // Invoice line items
+  getInvoiceLineItems(invoiceId: number): Promise<InvoiceLineItem[]>;
+  createInvoiceLineItem(lineItem: InsertInvoiceLineItem): Promise<InvoiceLineItem>;
+  updateInvoiceLineItem(id: number, updates: Partial<InvoiceLineItem>): Promise<InvoiceLineItem | undefined>;
+  deleteInvoiceLineItem(id: number): Promise<boolean>;
+}
+
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+
+  constructor() {
+    // Access isProduction from the global property set in db.ts
+    const isProduction = globalThis.isProductionEnv || process.env.NODE_ENV === 'production';
+    
+    // Initialize temporary memory store to avoid "this.sessionStore is undefined" issues
+    // This will be replaced with a proper store below if initialization succeeds
+    const MemoryStore = createMemoryStore(session);
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    });
+
+    // Production mode setup is async, so we need to handle this differently
+    if (isProduction) {
+      console.log('Production mode: Initializing session store with pg.Pool (TCP)');
+      
+      // Immediately setup direct pg-based session store
+      this._setupProductionSessionStore();
+    } else {
+      // Development mode can use the same approach but with auto-table creation enabled
+      console.log('Development mode: Using TCP/SSL pool for session store');
+      // We'll use the same dynamic import approach for consistency
+      this._setupDevelopmentSessionStore();
+    }
+  }
+  
+  // Method to set up production session store
+  /**
+   * Verify that the session table exists in the database
+   * @param testPool - A pg.Pool instance to use for verification
+   * @returns true if the table exists, false otherwise
+   */
+  private async verifySessionTable(testPool) {
+    try {
+      console.log('🔍 Verifying session table exists using pg.Pool...');
+      const result = await testPool.query(`SELECT 1 FROM session LIMIT 1;`);
+      console.log('✅ Session table verified - exists in database');
+      return true;
+    } catch (error) {
+      // Check if the error indicates the table doesn't exist
+      if (error.message.includes('relation "session" does not exist')) {
+        console.error('❌ Session table is missing from database:', error.message);
+        return false;
+      } else {
+        console.error('❌ Error checking session table:', error.message);
+        return false;
+      }
+    }
+  }
+
+  private async _setupProductionSessionStore() {
+    try {
+      console.log('🔄 Setting up production session store with dedicated pg.Pool (TCP/SSL)');
+      
+      // Simple test of connection
+      try {
+        const result = await pgSessionPool.query('SELECT NOW()');
+        console.log('✅ Session pool connection test successful:', result.rows[0].now);
+      } catch (err) {
+        console.error('❌ Session pool connection test failed:', err);
+        throw err;
+      }
+      
+      // Import connect-pg-simple dynamically - this is a CJS module
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      const connectPgSimple = require('connect-pg-simple');
+      const PgSession = connectPgSimple(session);
+      
+      // Create the store with the dedicated pg.Pool
+      // Note: We NEVER use drizzle-orm or any Neon WebSocket connections 
+      // for session table operations in production
+      const pgStore = new PgSession({
+        pool: pgSessionPool, // ALWAYS use the dedicated TCP/SSL pool
+        tableName: 'session',
+        createTableIfMissing: false, // Table must exist before app startup
+        pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 min
+        errorLog: console.error.bind(console)
+      });
+      
+      console.log('✅ Production session store created with dedicated pg.Pool');
+      
+      // Check if session table exists - but don't use drizzle-orm,
+      // use the pgSessionPool (pure pg)
+      try {
+        await pgSessionPool.query('SELECT 1 FROM session LIMIT 1');
+        console.log('✅ Session table exists and is accessible');
+      } catch (error) {
+        if (error.message.includes('relation "session" does not exist')) {
+          console.error('❌ Session table missing from database!');
+          console.error('Please run: node scripts/create-session-table.js');
+          console.error('Attempting to continue, but session persistence will fail');
+        } else {
+          console.error('❌ Error accessing session table:', error.message);
+          throw error;
+        }
+      }
+      
+      // Assign the pg session store
+      this.sessionStore = pgStore;
+      console.log('✅ Production session store initialized successfully');
+    } catch (err) {
+      console.error('❌ Failed to initialize production session store:', err);
+      console.error('Using memory store as fallback. Sessions will be lost on restart!');
+      this._setupMemoryStore('production');
+    }
+  }
+  
+  // Helper method to set up memory store
+  private _setupMemoryStore(env = 'production') {
+    const MemoryStore = createMemoryStore(session);
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    });
+    if (env === 'production') {
+      console.warn('⚠️ Using memory store in production! Sessions will be lost on restart.');
+    } else {
+      console.warn('Using in-memory session store as fallback. Sessions will be lost on restart.');
+    }
+  }
+  
+  private async _setupDevelopmentSessionStore() {
+    try {
+      console.log('🔄 Setting up development session store with dedicated pg.Pool (TCP/SSL)');
+      
+      // Simple test of connection
+      try {
+        const result = await pgSessionPool.query('SELECT NOW()');
+        console.log('✅ Session pool connection test successful:', result.rows[0].now);
+      } catch (err) {
+        console.error('❌ Session pool connection test failed:', err);
+        throw err;
+      }
+      
+      // Import connect-pg-simple dynamically - this is a CJS module
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      const connectPgSimple = require('connect-pg-simple');
+      const PgSession = connectPgSimple(session);
+      
+      // Create the store with the dedicated pg.Pool, but with auto table creation
+      const pgStore = new PgSession({
+        pool: pgSessionPool, // ALWAYS use the dedicated TCP/SSL pool
+        tableName: 'session',
+        createTableIfMissing: true, // Auto-create in development
+        pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 min
+        errorLog: console.error.bind(console)
+      });
+      
+      console.log('✅ Development session store created with dedicated pg.Pool');
+      
+      // Assign the pg session store
+      this.sessionStore = pgStore;
+      console.log('✅ Development session store initialized successfully');
+    } catch (err) {
+      console.error('❌ Failed to initialize development session store:', err);
+      console.error('Using memory store as fallback. Sessions will be lost on restart!');
+      this._setupMemoryStore('development');
+    }
+  }
+  
+  // User methods - ALWAYS use authDb for authentication-related operations
+  async getUser(id: number): Promise<User | undefined> {
+    try {
+      console.log("Getting user by ID:", id);
+      // Import auth-db for reliable TCP/SSL connection for auth operations
+      const { authDb } = await import('./auth-db');
+      const [user] = await authDb.select().from(users).where(eq(users.id, id));
+      return user;
+    } catch (error) {
+      console.error("Error getting user by ID:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      // Import auth-db for reliable TCP/SSL connection for auth operations
+      const { authDb } = await import('./auth-db');
+      const [user] = await authDb
+        .select()
+        .from(users)
+        .where(eq(users.username, username));
+      return user;
+    } catch (error) {
+      console.error("Error getting user by username:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    try {
+      // Import auth-db for reliable TCP/SSL connection for auth operations
+      const { authDb } = await import('./auth-db');
+      const [user] = await authDb
+        .select()
+        .from(users)
+        .where(eq(users.email, email));
+      return user;
+    } catch (error) {
+      console.error("Error getting user by email:", error);
+      return undefined;
+    }
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    // Import auth-db for reliable TCP/SSL connection for auth operations
+    const { authDb } = await import('./auth-db');
+    const [user] = await authDb
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
+    // Import auth-db for reliable TCP/SSL connection for auth operations
+    const { authDb } = await import('./auth-db');
+    const [user] = await authDb
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  // Landlord profile methods
+  async getLandlordProfile(userId: number): Promise<LandlordProfile | undefined> {
+    const [profile] = await authDb
+      .select()
+      .from(landlordProfiles)
+      .where(eq(landlordProfiles.userId, userId));
+    return profile;
+  }
+
+  async createLandlordProfile(profile: InsertLandlordProfile): Promise<LandlordProfile> {
+    const [newProfile] = await authDb
+      .insert(landlordProfiles)
+      .values(profile)
+      .returning();
+    return newProfile;
+  }
+
+  async updateLandlordProfile(userId: number, updates: Partial<LandlordProfile>): Promise<LandlordProfile | undefined> {
+    const [profile] = await db
+      .update(landlordProfiles)
+      .set(updates)
+      .where(eq(landlordProfiles.userId, userId))
+      .returning();
+    return profile;
+  }
+
+  // Contractor profile methods
+  async getContractorProfile(userId: number): Promise<ContractorProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(contractorProfiles)
+      .where(eq(contractorProfiles.userId, userId));
+    return profile;
+  }
+
+  async getAllContractorProfiles(): Promise<ContractorProfile[]> {
+    return db.select().from(contractorProfiles);
+  }
+
+  async createContractorProfile(profile: InsertContractorProfile): Promise<ContractorProfile> {
+    const [newProfile] = await db
+      .insert(contractorProfiles)
+      .values(profile)
+      .returning();
+    return newProfile;
+  }
+
+  async updateContractorProfile(userId: number, updates: Partial<ContractorProfile>): Promise<ContractorProfile | undefined> {
+    const [profile] = await db
+      .update(contractorProfiles)
+      .set(updates)
+      .where(eq(contractorProfiles.userId, userId))
+      .returning();
+    
+    return profile;
+  }
+
+  // Job methods
+  async getJob(id: number): Promise<Job | undefined> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job;
+  }
+
+  async getJobsByLandlord(landlordId: number): Promise<Job[]> {
+    return db.select().from(jobs).where(eq(jobs.landlordId, landlordId));
+  }
+
+  async getAvailableJobs(): Promise<Job[]> {
+    return db.select().from(jobs).where(eq(jobs.status, "open"));
+  }
+  
+  async getAllJobs(): Promise<Job[]> {
+    return db.select().from(jobs);
+  }
+
+  async getJobsByContractor(contractorId: number): Promise<Job[]> {
+    // Get jobs where the contractor is directly assigned
+    const directJobs = await db.select().from(jobs).where(eq(jobs.contractorId, contractorId));
+    
+    // Get accepted bids for this contractor
+    const acceptedBids = await db
+      .select()
+      .from(bids)
+      .where(and(
+        eq(bids.contractorId, contractorId),
+        eq(bids.status, "accepted")
+      ));
+    
+    // If no accepted bids, return only directly assigned jobs
+    if (acceptedBids.length === 0) {
+      return directJobs;
+    }
+    
+    // Get job IDs from accepted bids
+    const acceptedJobIds = acceptedBids.map(bid => bid.jobId);
+    
+    // Get jobs from accepted bids
+    const bidJobs = await db
+      .select()
+      .from(jobs)
+      .where(inArray(jobs.id, acceptedJobIds));
+    
+    // Combine both sets of jobs and remove duplicates
+    const allJobs = [...directJobs];
+    
+    // Add jobs from bids only if they're not already in the list
+    for (const job of bidJobs) {
+      if (!allJobs.some(existingJob => existingJob.id === job.id)) {
+        allJobs.push(job);
+      }
+    }
+    
+    return allJobs;
+  }
+
+  async createJob(job: InsertJob): Promise<Job> {
+    const now = new Date();
+    
+    // Ensure we're only using valid fields expected by the schema
+    const defaultJob = {
+      title: job.title,
+      description: job.description,
+      landlordId: job.landlordId,
+      location: job.location,
+      budget: job.budget,
+      categoryTags: job.categoryTags || [],
+      images: job.images || [],
+      status: "draft",
+      progress: 0,
+      startDate: job.startDate || null,
+      deadlineDate: job.deadlineDate || null,
+      contractorId: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newJob] = await db
+      .insert(jobs)
+      .values(defaultJob)
+      .returning();
+    
+    return newJob;
+  }
+
+  async updateJob(id: number, updates: Partial<Job>): Promise<Job | undefined> {
+    const updateWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [job] = await db
+      .update(jobs)
+      .set(updateWithTimestamp)
+      .where(eq(jobs.id, id))
+      .returning();
+    
+    return job;
+  }
+
+  // Bid methods
+  async getBid(id: number): Promise<Bid | undefined> {
+    const [bid] = await db.select().from(bids).where(eq(bids.id, id));
+    return bid;
+  }
+
+  async getBidsByJob(jobId: number): Promise<Bid[]> {
+    return db.select().from(bids).where(eq(bids.jobId, jobId));
+  }
+
+  async getBidsByContractor(contractorId: number): Promise<Bid[]> {
+    return db.select().from(bids).where(eq(bids.contractorId, contractorId));
+  }
+
+  async getBidByJobAndContractor(jobId: number, contractorId: number): Promise<Bid | undefined> {
+    const [bid] = await db
+      .select()
+      .from(bids)
+      .where(and(
+        eq(bids.jobId, jobId),
+        eq(bids.contractorId, contractorId)
+      ));
+    return bid;
+  }
+
+  async createBid(bid: InsertBid): Promise<Bid> {
+    const now = new Date();
+    const bidWithDefaults = {
+      ...bid,
+      status: bid.status || "pending",
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newBid] = await db
+      .insert(bids)
+      .values(bidWithDefaults)
+      .returning();
+    
+    return newBid;
+  }
+
+  async updateBid(id: number, updates: Partial<Bid>): Promise<Bid | undefined> {
+    const updateWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [bid] = await db
+      .update(bids)
+      .set(updateWithTimestamp)
+      .where(eq(bids.id, id))
+      .returning();
+    
+    return bid;
+  }
+
+  // Transaction methods
+  async getTransaction(id: number): Promise<Transaction | undefined> {
+    const [transaction] = await db.select().from(transactions).where(eq(transactions.id, id));
+    return transaction;
+  }
+
+  async getTransactionsByUser(userId: number): Promise<Transaction[]> {
+    return db.select().from(transactions).where(eq(transactions.userId, userId));
+  }
+
+  async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
+    const now = new Date();
+    const transactionWithDefaults = {
+      ...transaction,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newTransaction] = await db
+      .insert(transactions)
+      .values(transactionWithDefaults)
+      .returning();
+    
+    return newTransaction;
+  }
+
+  async updateTransaction(id: number, updates: Partial<Transaction>): Promise<Transaction | undefined> {
+    const updateWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [transaction] = await db
+      .update(transactions)
+      .set(updateWithTimestamp)
+      .where(eq(transactions.id, id))
+      .returning();
+    
+    return transaction;
+  }
+
+  // Chat methods
+  async getChatRoom(id: number): Promise<any> {
+    const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, id));
+    return room;
+  }
+
+  async getChatRoomByJob(jobId: number): Promise<any> {
+    const [room] = await db.select().from(chatRooms).where(eq(chatRooms.jobId, jobId));
+    return room;
+  }
+
+  async createChatRoom(jobId: number, participants: number[]): Promise<any> {
+    const now = new Date();
+    
+    // Insert the chat room
+    const [room] = await db
+      .insert(chatRooms)
+      .values({
+        jobId,
+        createdAt: now,
+        updatedAt: now
+      })
+      .returning();
+    
+    // Add participants
+    for (const userId of participants) {
+      await db
+        .insert(chatParticipants)
+        .values({
+          chatRoomId: room.id,
+          userId,
+          createdAt: now,
+          updatedAt: now
+        });
+    }
+    
+    return room;
+  }
+
+  async getChatRoomParticipants(chatRoomId: number): Promise<any[]> {
+    return db
+      .select()
+      .from(chatParticipants)
+      .where(eq(chatParticipants.chatRoomId, chatRoomId));
+  }
+
+  async addChatRoomParticipant(chatRoomId: number, userId: number): Promise<any> {
+    const now = new Date();
+    
+    const [participant] = await db
+      .insert(chatParticipants)
+      .values({
+        chatRoomId,
+        userId,
+        createdAt: now,
+        updatedAt: now
+      })
+      .returning();
+    
+    return participant;
+  }
+
+  async getChatMessages(chatRoomId: number): Promise<any[]> {
+    return db
+      .select()
+      .from(messages)
+      .where(eq(messages.chatRoomId, chatRoomId))
+      .orderBy(messages.createdAt);
+  }
+
+  async createChatMessage(message: InsertMessage): Promise<Message> {
+    const now = new Date();
+    const messageWithDefaults = {
+      ...message,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newMessage] = await db
+      .insert(messages)
+      .values(messageWithDefaults)
+      .returning();
+    
+    return newMessage;
+  }
+
+  async getUnreadMessageCount(userId: number): Promise<number> {
+    // Get all chat rooms this user is in
+    const userChatRooms = await db
+      .select()
+      .from(chatParticipants)
+      .where(eq(chatParticipants.userId, userId));
+    
+    if (userChatRooms.length === 0) {
+      return 0;
+    }
+    
+    const chatRoomIds = userChatRooms.map(p => p.chatRoomId);
+    
+    // Count messages in these rooms that are newer than the last time the user accessed them
+    let unreadCount = 0;
+    for (const participant of userChatRooms) {
+      const lastRead = participant.lastReadAt || new Date(0); // If never read, use epoch
+      
+      // Count messages newer than lastRead
+      const [result] = await db
+        .select({ count: count() })
+        .from(messages)
+        .where(and(
+          eq(messages.chatRoomId, participant.chatRoomId),
+          eq(messages.chatRoomId, participant.chatRoomId),
+          sql`${messages.createdAt} > ${lastRead}`
+        ));
+      
+      unreadCount += result?.count || 0;
+    }
+    
+    return unreadCount;
+  }
+
+  async markMessagesAsRead(chatRoomId: number, userId: number): Promise<void> {
+    const now = new Date();
+    
+    await db
+      .update(chatParticipants)
+      .set({ lastReadAt: now, updatedAt: now })
+      .where(and(
+        eq(chatParticipants.chatRoomId, chatRoomId),
+        eq(chatParticipants.userId, userId)
+      ));
+  }
+
+  // Review methods
+  async getReview(id: number): Promise<Review | undefined> {
+    const [review] = await db.select().from(reviews).where(eq(reviews.id, id));
+    return review;
+  }
+
+  async getReviewsByUser(userId: number): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.userId, userId));
+  }
+
+  async getReviewsByReviewer(reviewerId: number): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.reviewerId, reviewerId));
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const now = new Date();
+    const reviewWithDefaults = {
+      ...review,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newReview] = await db
+      .insert(reviews)
+      .values(reviewWithDefaults)
+      .returning();
+    
+    return newReview;
+  }
+
+  // Password reset methods
+  async createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken> {
+    // Import auth-db for reliable TCP/SSL connection for auth operations
+    const { authDb } = await import('./auth-db');
+    
+    const now = new Date();
+    const tokenWithDefaults = {
+      ...token,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newToken] = await authDb
+      .insert(passwordResetTokens)
+      .values(tokenWithDefaults)
+      .returning();
+    
+    return newToken;
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    // Import auth-db for reliable TCP/SSL connection for auth operations
+    const { authDb } = await import('./auth-db');
+    
+    const [resetToken] = await authDb
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token));
+    
+    return resetToken;
+  }
+  
+  // Added method to match what's being called in routes.ts
+  async getPasswordResetTokenByToken(token: string): Promise<PasswordResetToken | undefined> {
+    // This is just an alias to getPasswordResetToken
+    return this.getPasswordResetToken(token);
+  }
+
+  async deletePasswordResetToken(token: string): Promise<boolean> {
+    // Import auth-db for reliable TCP/SSL connection for auth operations
+    const { authDb } = await import('./auth-db');
+    
+    const result = await authDb
+      .delete(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token));
+    
+    return result.count > 0;
+  }
+  
+  // Add method to mark password reset token as used
+  async markPasswordResetTokenAsUsed(token: string): Promise<boolean> {
+    // Import auth-db for reliable TCP/SSL connection for auth operations
+    const { authDb } = await import('./auth-db');
+    
+    const result = await authDb
+      .update(passwordResetTokens)
+      .set({ used: true, updatedAt: new Date() })
+      .where(eq(passwordResetTokens.token, token))
+      .returning();
+    
+    return result.length > 0;
+  }
+
+  // Waitlist methods
+  async addToWaitlist(entry: InsertWaitlistEntry): Promise<WaitlistEntry> {
+    const now = new Date();
+    const entryWithDefaults = {
+      ...entry,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newEntry] = await db
+      .insert(waitlistEntries)
+      .values(entryWithDefaults)
+      .returning();
+    
+    return newEntry;
+  }
+
+  async getWaitlistEntries(): Promise<WaitlistEntry[]> {
+    return db.select().from(waitlistEntries);
+  }
+  
+  // Quote methods
+  async getQuote(id: number): Promise<Quote | undefined> {
+    const [quote] = await db.select().from(quotes).where(eq(quotes.id, id));
+    return quote;
+  }
+  
+  async getQuotesByLandlord(landlordId: number): Promise<Quote[]> {
+    return db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.landlordId, landlordId))
+      .orderBy(desc(quotes.createdAt));
+  }
+  
+  async getQuotesByContractor(contractorId: number): Promise<Quote[]> {
+    return db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.contractorId, contractorId))
+      .orderBy(desc(quotes.createdAt));
+  }
+  
+  async getQuoteByJob(jobId: number): Promise<Quote | undefined> {
+    const [quote] = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.jobId, jobId))
+      .orderBy(desc(quotes.createdAt));
+    
+    return quote;
+  }
+  
+  async createQuote(quote: InsertQuote): Promise<Quote> {
+    const now = new Date();
+    
+    // Default values
+    const defaultQuote = {
+      ...quote,
+      status: quote.status || "draft",
+      subtotal: quote.subtotal || 0,
+      total: quote.total || 0,
+      paymentMethods: quote.paymentMethods || ["credit_card", "bank_transfer"],
+      createdAt: now,
+      updatedAt: now,
+      sentAt: null,
+      viewedAt: null,
+      responseAt: null
+    };
+    
+    const [newQuote] = await db
+      .insert(quotes)
+      .values(defaultQuote)
+      .returning();
+    
+    return newQuote;
+  }
+  
+  async updateQuote(id: number, updates: Partial<Quote>): Promise<Quote | undefined> {
+    const updateWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [quote] = await db
+      .update(quotes)
+      .set(updateWithTimestamp)
+      .where(eq(quotes.id, id))
+      .returning();
+    
+    return quote;
+  }
+  
+  async deleteQuote(id: number): Promise<boolean> {
+    // First delete associated line items
+    await db
+      .delete(quoteLineItems)
+      .where(eq(quoteLineItems.quoteId, id));
+    
+    // Then delete the quote
+    const result = await db
+      .delete(quotes)
+      .where(eq(quotes.id, id));
+    
+    return result.count > 0;
+  }
+  
+  // Quote line item methods
+  async getQuoteLineItems(quoteId: number): Promise<QuoteLineItem[]> {
+    return db
+      .select()
+      .from(quoteLineItems)
+      .where(eq(quoteLineItems.quoteId, quoteId))
+      .orderBy(quoteLineItems.sortOrder);
+  }
+  
+  async createQuoteLineItem(lineItem: InsertQuoteLineItem): Promise<QuoteLineItem> {
+    const now = new Date();
+    
+    // Default values
+    const defaultLineItem = {
+      ...lineItem,
+      quantity: lineItem.quantity || 1,
+      sortOrder: lineItem.sortOrder || 0,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newLineItem] = await db
+      .insert(quoteLineItems)
+      .values(defaultLineItem)
+      .returning();
+    
+    return newLineItem;
+  }
+  
+  async updateQuoteLineItem(id: number, updates: Partial<QuoteLineItem>): Promise<QuoteLineItem | undefined> {
+    const updateWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [lineItem] = await db
+      .update(quoteLineItems)
+      .set(updateWithTimestamp)
+      .where(eq(quoteLineItems.id, id))
+      .returning();
+    
+    return lineItem;
+  }
+  
+  async deleteQuoteLineItem(id: number): Promise<boolean> {
+    const result = await db
+      .delete(quoteLineItems)
+      .where(eq(quoteLineItems.id, id));
+    
+    return result.count > 0;
+  }
+  
+  // Invoice methods
+  async getInvoice(id: number): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    return invoice;
+  }
+  
+  async getInvoicesByLandlord(landlordId: number): Promise<Invoice[]> {
+    return db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.landlordId, landlordId))
+      .orderBy(desc(invoices.createdAt));
+  }
+  
+  async getInvoicesByContractor(contractorId: number): Promise<Invoice[]> {
+    return db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.contractorId, contractorId))
+      .orderBy(desc(invoices.createdAt));
+  }
+  
+  async getInvoiceByJob(jobId: number): Promise<Invoice | undefined> {
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.jobId, jobId))
+      .orderBy(desc(invoices.createdAt));
+    
+    return invoice;
+  }
+  
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const now = new Date();
+    
+    // Default values
+    const defaultInvoice = {
+      ...invoice,
+      status: invoice.status || "draft",
+      subtotal: invoice.subtotal || 0,
+      total: invoice.total || 0,
+      amountPaid: invoice.amountPaid || 0,
+      taxRate: invoice.taxRate || 0,
+      taxAmount: invoice.taxAmount || 0,
+      createdAt: now,
+      updatedAt: now,
+      sentAt: null,
+      viewedAt: null,
+      paidAt: null,
+      overdueAt: null
+    };
+    
+    const [newInvoice] = await db
+      .insert(invoices)
+      .values(defaultInvoice)
+      .returning();
+    
+    return newInvoice;
+  }
+  
+  async updateInvoice(id: number, updates: Partial<Invoice>): Promise<Invoice | undefined> {
+    const updateWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [invoice] = await db
+      .update(invoices)
+      .set(updateWithTimestamp)
+      .where(eq(invoices.id, id))
+      .returning();
+    
+    return invoice;
+  }
+  
+  async deleteInvoice(id: number): Promise<boolean> {
+    // First delete associated line items
+    await db
+      .delete(invoiceLineItems)
+      .where(eq(invoiceLineItems.invoiceId, id));
+    
+    // Then delete the invoice
+    const result = await db
+      .delete(invoices)
+      .where(eq(invoices.id, id));
+    
+    return result.count > 0;
+  }
+  
+  // Invoice line item methods
+  async getInvoiceLineItems(invoiceId: number): Promise<InvoiceLineItem[]> {
+    return db
+      .select()
+      .from(invoiceLineItems)
+      .where(eq(invoiceLineItems.invoiceId, invoiceId))
+      .orderBy(invoiceLineItems.sortOrder);
+  }
+  
+  async createInvoiceLineItem(lineItem: InsertInvoiceLineItem): Promise<InvoiceLineItem> {
+    const now = new Date();
+    
+    // Default values
+    const defaultLineItem = {
+      ...lineItem,
+      quantity: lineItem.quantity || 1,
+      sortOrder: lineItem.sortOrder || 0,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const [newLineItem] = await db
+      .insert(invoiceLineItems)
+      .values(defaultLineItem)
+      .returning();
+    
+    return newLineItem;
+  }
+  
+  async updateInvoiceLineItem(id: number, updates: Partial<InvoiceLineItem>): Promise<InvoiceLineItem | undefined> {
+    const updateWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [lineItem] = await db
+      .update(invoiceLineItems)
+      .set(updateWithTimestamp)
+      .where(eq(invoiceLineItems.id, id))
+      .returning();
+    
+    return lineItem;
+  }
+  
+  async deleteInvoiceLineItem(id: number): Promise<boolean> {
+    const result = await db
+      .delete(invoiceLineItems)
+      .where(eq(invoiceLineItems.id, id));
+    
+    return result.count > 0;
+  }
+}
+
+// Export a single instance
+export const storage = new DatabaseStorage();

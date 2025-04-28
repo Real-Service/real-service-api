@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Authentication Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      border: 1px solid #ddd;
+      padding: 20px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    input {
+      padding: 8px;
+      margin: 5px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    pre {
+      background-color: #f8f8f8;
+      padding: 10px;
+      border-radius: 5px;
+      overflow: auto;
+      max-height: 300px;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Authentication Test Page</h1>
+  
+  <div class="container">
+    <h2>Login Form</h2>
+    <form id="loginForm">
+      <label for="email">Email:</label>
+      <input type="email" id="email" name="email" value="contractor7@expressbd.ca">
+      
+      <label for="password">Password:</label>
+      <input type="password" id="password" name="password" value="password123">
+      
+      <div style="margin-top: 15px;">
+        <button type="button" id="loginButton">Login</button>
+        <button type="button" id="directLoginButton">Direct Login</button>
+      </div>
+    </form>
+  </div>
+  
+  <div class="container">
+    <h2>Session Status</h2>
+    <button id="checkSessionButton">Check Current Session</button>
+    <button id="logoutButton">Logout</button>
+    <div id="sessionStatus">Not checked yet</div>
+  </div>
+  
+  <div class="container">
+    <h2>API Test</h2>
+    <button id="getContractorJobsButton">Get Contractor Jobs</button>
+    <div id="apiResult">No results yet</div>
+  </div>
+  
+  <div class="container">
+    <h2>Debug Info</h2>
+    <button id="clearLogButton">Clear Log</button>
+    <pre id="debugLog"></pre>
+  </div>
+
+  <script>
+    // Utility function for logging
+    function log(message, type = 'info') {
+      const logElement = document.getElementById('debugLog');
+      const timestamp = new Date().toLocaleTimeString();
+      const formattedMessage = `[${timestamp}] ${message}`;
+      
+      console.log(formattedMessage);
+      logElement.innerHTML = formattedMessage + '\n' + logElement.innerHTML;
+      
+      if (type === 'error') {
+        console.error(message);
+      }
+    }
+    
+    // Function to handle API requests
+    async function makeRequest(url, method = 'GET', data = null) {
+      try {
+        const options = {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include' // Important for cookies/session
+        };
+        
+        if (data) {
+          options.body = JSON.stringify(data);
+        }
+        
+        log(`Making ${method} request to ${url}`);
+        const response = await fetch(url, options);
+        
+        let responseData;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+        
+        if (!response.ok) {
+          log(`Error: ${response.status} ${response.statusText}`, 'error');
+          log(`Response: ${JSON.stringify(responseData, null, 2)}`, 'error');
+          return { success: false, data: responseData, status: response.status };
+        }
+        
+        log(`Success: ${response.status} ${response.statusText}`);
+        log(`Response: ${JSON.stringify(responseData, null, 2)}`);
+        return { success: true, data: responseData, status: response.status };
+      } catch (error) {
+        log(`Exception: ${error.message}`, 'error');
+        return { success: false, error: error.message };
+      }
+    }
+    
+    // Login function
+    async function doLogin() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      if (!email || !password) {
+        log('Email and password are required', 'error');
+        return;
+      }
+      
+      const result = await makeRequest('/api/login', 'POST', { email, password });
+      
+      const sessionStatus = document.getElementById('sessionStatus');
+      if (result.success) {
+        sessionStatus.innerHTML = `<span class="success">Logged in as ${result.data.fullName || result.data.username}</span>`;
+        sessionStatus.innerHTML += `<pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+        
+        // Save to session storage
+        sessionStorage.setItem('auth_user', JSON.stringify(result.data));
+        
+        log('Login successful!');
+      } else {
+        sessionStatus.innerHTML = `<span class="error">Login failed</span>`;
+        log('Login failed', 'error');
+      }
+    }
+    
+    // Direct login function (uses the token-based approach)
+    async function doDirectLogin() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      if (!email || !password) {
+        log('Email and password are required', 'error');
+        return;
+      }
+      
+      const result = await makeRequest('/api/direct-login', 'POST', { email, password });
+      
+      const sessionStatus = document.getElementById('sessionStatus');
+      if (result.success) {
+        sessionStatus.innerHTML = `<span class="success">Logged in via direct login as ${result.data.fullName || result.data.username}</span>`;
+        sessionStatus.innerHTML += `<pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+        
+        // Save to session storage
+        sessionStorage.setItem('auth_user', JSON.stringify(result.data));
+        
+        log('Direct login successful!');
+      } else {
+        sessionStatus.innerHTML = `<span class="error">Direct login failed</span>`;
+        log('Direct login failed', 'error');
+      }
+    }
+    
+    // Check current session
+    async function checkSession() {
+      const result = await makeRequest('/api/user');
+      
+      const sessionStatus = document.getElementById('sessionStatus');
+      if (result.success) {
+        sessionStatus.innerHTML = `<span class="success">Active session for ${result.data.fullName || result.data.username}</span>`;
+        sessionStatus.innerHTML += `<pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+        log('Session is active');
+      } else {
+        sessionStatus.innerHTML = `<span class="error">No active session</span>`;
+        log('No active session', 'error');
+      }
+    }
+    
+    // Logout function
+    async function doLogout() {
+      const result = await makeRequest('/api/logout', 'POST');
+      
+      const sessionStatus = document.getElementById('sessionStatus');
+      if (result.success) {
+        sessionStatus.innerHTML = '<span class="success">Logged out successfully</span>';
+        log('Logout successful!');
+        
+        // Clear session storage
+        sessionStorage.removeItem('auth_user');
+      } else {
+        sessionStatus.innerHTML = '<span class="error">Logout failed</span>';
+        log('Logout failed', 'error');
+      }
+    }
+    
+    // Test the contractor jobs API
+    async function getContractorJobs() {
+      const result = await makeRequest('/api/contractor-jobs');
+      
+      const apiResult = document.getElementById('apiResult');
+      if (result.success) {
+        apiResult.innerHTML = `<div class="success">API call successful</div>`;
+        apiResult.innerHTML += `<pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+        log('Contractor jobs API call successful');
+      } else {
+        apiResult.innerHTML = `<div class="error">API call failed</div>`;
+        apiResult.innerHTML += `<pre>${JSON.stringify(result.data || result.error, null, 2)}</pre>`;
+        log('Contractor jobs API call failed', 'error');
+      }
+    }
+    
+    // Add event listeners
+    document.getElementById('loginButton').addEventListener('click', doLogin);
+    document.getElementById('directLoginButton').addEventListener('click', doDirectLogin);
+    document.getElementById('checkSessionButton').addEventListener('click', checkSession);
+    document.getElementById('logoutButton').addEventListener('click', doLogout);
+    document.getElementById('getContractorJobsButton').addEventListener('click', getContractorJobs);
+    document.getElementById('clearLogButton').addEventListener('click', () => {
+      document.getElementById('debugLog').innerHTML = '';
+    });
+    
+    // Check session on page load
+    window.addEventListener('load', () => {
+      log('Page loaded, checking session status...');
+      checkSession();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: real-service-api
+    env: node
+    buildCommand: npm ci
+    startCommand: node start-production.js
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
+      - key: COOKIE_MAX_AGE
+        value: 604800000
+      - key: CORS_ORIGIN
+        value: https://real-service-team9-01-teamleader2000.replit.app
+      - key: FRONTEND_URL
+        value: https://real-service-team9-01-teamleader2000.replit.app
+      - key: PORT
+        value: 8080
