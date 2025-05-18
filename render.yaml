@@ -4,7 +4,7 @@ services:
     name: real-service-api
     env: node
     buildCommand: npm ci
-    startCommand: node render-server.cjs
+    startCommand: node index.js
     healthCheckPath: /healthz
     plan: starter
     envVars:
