@@ -8,7 +8,12 @@ services:
     # Build using the Vite-free server entry point for production 
     buildCommand: |
       npm ci
-      mkdir -p dist
+      mkdir -p dist public
+      # Copy static assets to the public folder (to be served by Express)
+      cp -r client/dist/* public/ || echo "No client build found, building server only"
+      # Force-set production environment
+      export NODE_ENV=production
+      # Build server with esbuild, excluding all Vite-related code
       npx esbuild server/server-prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js
     startCommand: NODE_ENV=production node dist/index.js
     healthCheckPath: /healthz

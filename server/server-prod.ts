@@ -6,8 +6,8 @@
 import express, { type Express, type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import cors from "cors";
-// IMPORTANT: Create a production-specific routes
-import { registerRoutes } from "./routes-prod";
+// For production, we'll use the original routes file but with careful handling
+import { registerRoutes } from "./routes";
 import { randomBytes } from "crypto";
 import { storage } from "./storage";
 import helmet from "helmet";
