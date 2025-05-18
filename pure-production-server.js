@@ -47,6 +47,17 @@ try {
 // Create Express app
 const app = express();
 const port = process.env.PORT || 5000;
+console.log(`Starting production server with PORT=${port}`);
+
+// Debug: Log all environment variables to help with troubleshooting
+console.log('Environment variables:');
+Object.keys(process.env).forEach(key => {
+  if (!key.includes('SECRET') && !key.includes('KEY') && !key.includes('PASSWORD')) {
+    console.log(`${key}=${process.env[key]}`);
+  } else {
+    console.log(`${key}=[REDACTED]`);
+  }
+});
 
 // Basic middleware
 app.use(express.json({ limit: '10mb' }));
