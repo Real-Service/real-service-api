@@ -17,7 +17,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build both client and server
-RUN npm run build
+RUN ./build.sh
 
 # Production image, copy all the files and run the server
 FROM base AS runner
