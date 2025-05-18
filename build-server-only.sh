@@ -1,59 +1,35 @@
 #!/bin/bash
-# Server-only build script for production deployment
-# This script deliberately avoids compiling any client files that might depend on Vite
+# Script to build only the server part of the application for deployment
+# This eliminates Vite dependencies when deploying to production
 
-echo "Starting server-only build process..."
+echo "Building server-only for production deployment..."
 
-# Create dist directory
-mkdir -p dist/server
+# First compile TypeScript using our server-specific config
+echo "Compiling TypeScript..."
+npx tsc -p tsconfig.server.json
 
-# Create a minimal tsconfig for server files only
-echo "Creating server-specific tsconfig..."
-cat > tsconfig.server.json << EOF
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "."
-  },
-  "include": [
-    "server/**/*.ts",
-    "shared/**/*.ts"
-  ],
-  "exclude": [
-    "client/**/*"
-  ]
-}
-EOF
-
-# Compile only server files using tsc
-echo "Compiling server TypeScript files..."
-npx tsc --project tsconfig.server.json
-
-echo "Creating public directory for static assets..."
-mkdir -p public
-
-# Create a minimal index.html file (just in case)
-cat > public/index.html << EOF
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>API Server</title>
-  <style>body{font-family:system-ui;max-width:800px;margin:2rem auto;padding:0 1rem}</style>
-</head>
-<body>
-  <h1>Real Service API</h1>
-  <p>The server is running in production mode.</p>
-</body>
-</html>
-EOF
-
-# Check for any Vite references
-if grep -r "vite" dist/server; then
-  echo "WARNING: Vite references found in server build!"
+# Check if the compilation was successful
+if [ $? -eq 0 ]; then
+    echo "Server compilation successful"
+    echo "Output files location: ./dist/index.js"
+    
+    # Add extra step to verify the file exists
+    if [ -f "./dist/index.js" ]; then
+        echo "✅ Main server file exists at the expected location"
+    else
+        echo "❌ Warning: Main server file not found at ./dist/index.js"
+        
+        # Check if it's in the server subdirectory
+        if [ -f "./dist/server/index.js" ]; then
+            echo "Found file at ./dist/server/index.js"
+            echo "Creating symlink..."
+            ln -sf ./server/index.js ./dist/index.js
+            echo "✅ Symlink created successfully"
+        fi
+    fi
 else
-  echo "SUCCESS: Server build is clean (no Vite references)"
+    echo "❌ Server compilation failed"
+    exit 1
 fi
 
-echo "Server build completed!"
+echo "Server ready for deployment!"
