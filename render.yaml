@@ -5,8 +5,8 @@ services:
   - type: web
     name: real-service-api
     env: node
-    # Directly use npx command to avoid any scripts that might call vite
-    buildCommand: npm ci && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+    # Use a special build script that modifies package.json to remove Vite
+    buildCommand: ./render-build-no-vite.sh
     startCommand: node dist/index.js
     healthCheckPath: /healthz
     envVars:
