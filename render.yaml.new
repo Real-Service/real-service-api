@@ -1,0 +1,14 @@
+services:
+  # Main API server
+  - type: web
+    name: real-service-api
+    env: node
+    runtime: node
+    buildCommand: npm ci && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+    startCommand: node dist/index.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000

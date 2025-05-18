@@ -5,8 +5,9 @@ services:
   - type: web
     name: real-service-api
     env: node
-    buildCommand: ./render-build.sh
-    startCommand: node render-server-only.js
+    # Directly use npx command to avoid any scripts that might call vite
+    buildCommand: npm ci && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+    startCommand: node dist/index.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
