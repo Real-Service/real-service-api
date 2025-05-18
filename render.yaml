@@ -5,8 +5,12 @@ services:
   - type: web
     name: real-service-api
     env: node
-    buildCommand: ./build.sh --install
-    startCommand: node dist/server/index.js
+    buildCommand: |
+      # Install dependencies
+      npm ci
+      # Run server-only build to avoid Vite dependencies
+      bash ./build-server-only.sh
+    startCommand: NODE_ENV=production node dist/server/index.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
