@@ -12,8 +12,8 @@ const path = require('path');
 // Create Express app
 const app = express();
 
-// Parse PORT as integer - CRITICAL for Render
-const PORT = parseInt(process.env.PORT || "10000", 10);
+// CRITICAL: Use this exact format for the PORT
+const PORT = process.env.PORT || 5000;
 
 // Basic health check routes
 app.get('/health', (req, res) => {
@@ -28,9 +28,8 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Bind directly with Express to the port
-// DO NOT use template literals for the console.log
-app.listen(PORT, "0.0.0.0", () => {
-  // This exact message format is what Render is looking for
-  console.log("Server listening on port " + PORT);
+// CRITICAL: Use this exact format as shown in the screenshot
+app.listen(PORT, () => {
+  // Using the exact format shown in the screenshot
+  console.log("✅ Server is running and listening on port " + PORT);
 });
