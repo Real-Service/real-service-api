@@ -5,8 +5,11 @@ services:
   - type: web
     name: real-service-api
     env: node
-    # Use a special build script that modifies package.json to remove Vite
-    buildCommand: ./render-build-no-vite.sh
+    # Use a starter script approach to bypass build and prepare the server manually
+    buildCommand: |
+      npm ci
+      mkdir -p dist
+      npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
     startCommand: node dist/index.js
     healthCheckPath: /healthz
     envVars:
