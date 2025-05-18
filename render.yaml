@@ -9,8 +9,8 @@ services:
     buildCommand: |
       npm ci
       mkdir -p dist
-      npx esbuild server/server-prod.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
-    startCommand: node dist/index.js
+      npx esbuild server/server-prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js
+    startCommand: NODE_ENV=production node dist/index.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
