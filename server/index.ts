@@ -360,28 +360,12 @@ app.use((req, res, next) => {
     }
   });
 
-  // In development mode, first setup Vite to handle frontend
-  if (process.env.NODE_ENV === 'development') {
-    try {
-      console.log("Setting up Vite for development mode");
-      // Create HTTP server first so Vite can attach to it for HMR
-      const httpServer = createServer(app);
-      // Setup Vite with the server for HMR
-      await setupVite(app, httpServer);
-      // Then register API routes
-      const apiServer = await registerRoutes(app);
-      // Use the HTTP server with Vite attached
-      return httpServer;
-    } catch (err) {
-      console.error("Failed to setup development environment:", err);
-      process.exit(1);
-    }
-  } else {
-    // In production, register API routes first, then serve static files
-    const server = await registerRoutes(app);
-    serveStaticProd(app);
-    return server;
-  }
+  // Register API routes
+  const server = await registerRoutes(app);
+  
+  // For production, serve static files
+  // For development in Replit, serve our dashboard for testing
+  app.use(express.static('public'));
 
   // 1. Catch 404 for unmatched API routes only
   app.use('/api/*', (req: Request, res: Response) => {
