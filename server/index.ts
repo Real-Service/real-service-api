@@ -10,15 +10,11 @@ import { sql } from "drizzle-orm";
 import { authDb } from "./auth-db";
 import { Pool } from "pg";
 import path from "path";
+import { setupVite, serveStatic, log } from "./vite";
+import { createServer } from "http";
 
-// Custom logger function to replace the one from vite.ts
-const log = (message: string) => {
-  const time = new Date().toLocaleTimeString();
-  console.log(`${time} [express] ${message}`);
-}
-
-// Static file serving function to replace the one from vite.ts
-const serveStatic = (app: express.Express) => {
+// For production mode only, define our own static file serving
+const serveStaticProd = (app: express.Express) => {
   const publicDir = path.join(process.cwd(), 'public');
   app.use(express.static(publicDir));
   
@@ -364,12 +360,27 @@ app.use((req, res, next) => {
     }
   });
 
-  const server = await registerRoutes(app);
-
-  // Only serve static files in production
-  // In development, we don't need this since the frontend is served by another process
-  if (app.get("env") !== "development") {
-    serveStatic(app);
+  // In development mode, first setup Vite to handle frontend
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      console.log("Setting up Vite for development mode");
+      // Create HTTP server first so Vite can attach to it for HMR
+      const httpServer = createServer(app);
+      // Setup Vite with the server for HMR
+      await setupVite(app, httpServer);
+      // Then register API routes
+      const apiServer = await registerRoutes(app);
+      // Use the HTTP server with Vite attached
+      return httpServer;
+    } catch (err) {
+      console.error("Failed to setup development environment:", err);
+      process.exit(1);
+    }
+  } else {
+    // In production, register API routes first, then serve static files
+    const server = await registerRoutes(app);
+    serveStaticProd(app);
+    return server;
   }
 
   // 1. Catch 404 for unmatched API routes only
