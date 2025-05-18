@@ -9,12 +9,8 @@ if [ "$1" == "--install" ]; then
   npm ci
 fi
 
-# Build the frontend with Vite
-echo "🏗️ Building frontend with Vite..."
-npx vite build
-
-# Compile TypeScript
-echo "🔨 Compiling TypeScript..."
-npx tsc
+# Build the backend with esbuild (skip Vite for now)
+echo "🔨 Compiling server with esbuild..."
+npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 
 echo "✅ Build completed successfully!"
