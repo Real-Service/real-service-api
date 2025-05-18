@@ -166,6 +166,8 @@ const server = createServer(app);
 
 // CRITICAL FIX: Use app.listen directly on the port Render provides
 // This is the exact format Render needs to detect the open port
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server listening on port ${port}`);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  // Render needs to see this EXACT log format with the actual port number
+  console.log("Server listening on port " + PORT);
 });

@@ -45,7 +45,8 @@ try {
 
 // Create Express app
 const app = express();
-const port = process.env.PORT || 10000;
+// IMPORTANT: Parse port as integer and use a consistent variable name (PORT)
+const PORT = parseInt(process.env.PORT || "10000", 10);
 
 // Basic middleware
 app.use(cors());
@@ -220,8 +221,13 @@ app.get('*', (req, res) => {
 // Create and start server
 const server = createServer(app);
 
+// Get port from environment variable
+const PORT = parseInt(process.env.PORT || "5000", 10);
+console.log("Binding to PORT: " + PORT);
+
 // Critical fix: Use app.listen properly and explicitly log the ACTUAL port number
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Server listening on port ${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+app.listen(PORT, "0.0.0.0", () => {
+  // IMPORTANT: Use string concatenation, not template literals to avoid any issues
+  console.log("Server listening on port " + PORT);
+  console.log("Environment: " + (process.env.NODE_ENV || 'development'));
 });
