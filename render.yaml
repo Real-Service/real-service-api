@@ -6,11 +6,13 @@ services:
     name: real-service-api
     env: node
     buildCommand: |
-      # Install dependencies
-      npm ci
-      # Run server-only build to avoid Vite dependencies
-      bash ./build-server-only.sh
-    startCommand: NODE_ENV=production node dist/server/index.js
+      # Install only the minimal required dependencies
+      npm install express cors http
+      # Create public directory for static assets
+      mkdir -p public
+      # Copy any pre-built client assets if available
+      cp -r client/dist/* public/ 2>/dev/null || echo "No client assets found"
+    startCommand: NODE_ENV=production node pure-production-server.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV

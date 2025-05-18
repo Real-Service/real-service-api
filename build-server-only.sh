@@ -7,11 +7,8 @@ echo "Starting server-only build process..."
 # Create dist directory
 mkdir -p dist/server
 
-# Compile only server files using tsc
-echo "Compiling server TypeScript files..."
-npx tsc --project tsconfig.server.json
-
 # Create a minimal tsconfig for server files only
+echo "Creating server-specific tsconfig..."
 cat > tsconfig.server.json << EOF
 {
   "extends": "./tsconfig.json",
@@ -29,7 +26,8 @@ cat > tsconfig.server.json << EOF
 }
 EOF
 
-# Compile server code with server-specific tsconfig
+# Compile only server files using tsc
+echo "Compiling server TypeScript files..."
 npx tsc --project tsconfig.server.json
 
 echo "Creating public directory for static assets..."
