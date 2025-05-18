@@ -11,10 +11,38 @@ import path from 'path';
 import { createServer } from 'http';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 
 // Create __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Set up database connection
+const { Pool } = pg;
+let pool;
+
+try {
+  if (process.env.DATABASE_URL) {
+    console.log('Initializing database connection pool...');
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+    
+    // Test database connection
+    pool.query('SELECT NOW()', (err, res) => {
+      if (err) {
+        console.error('Database connection error:', err.message);
+      } else {
+        console.log('Database connected successfully at:', res.rows[0].now);
+      }
+    });
+  } else {
+    console.warn('No DATABASE_URL found in environment, database features will be unavailable');
+  }
+} catch (error) {
+  console.error('Failed to initialize database pool:', error.message);
+}
 
 // Create Express app
 const app = express();
@@ -23,22 +51,52 @@ const port = process.env.PORT || 5000;
 // Basic middleware
 app.use(express.json({ limit: '10mb' }));
 
-// Health check endpoint
-app.get('/healthz', (req, res) => {
+// Health check endpoint with database status
+app.get('/healthz', async (req, res) => {
+  let dbStatus = 'unavailable';
+  let dbMessage = 'Database not configured';
+  
+  if (pool) {
+    try {
+      const result = await pool.query('SELECT NOW()');
+      dbStatus = 'connected';
+      dbMessage = `Connected at ${result.rows[0].now}`;
+    } catch (error) {
+      dbStatus = 'error';
+      dbMessage = error.message;
+    }
+  }
+  
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     message: 'Pure server is running correctly',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    database: {
+      status: dbStatus,
+      message: dbMessage
+    }
   });
 });
 
 // API status endpoint
-app.get('/api/status', (req, res) => {
+app.get('/api/status', async (req, res) => {
+  let dbStatus = 'unavailable';
+  
+  if (pool) {
+    try {
+      await pool.query('SELECT 1');
+      dbStatus = 'connected';
+    } catch (error) {
+      dbStatus = 'error';
+    }
+  }
+  
   res.status(200).json({
     version: '1.0',
     status: 'operational',
     message: 'Production deployment server running (no Vite dependencies)',
+    database: dbStatus,
     timestamp: new Date().toISOString()
   });
 });

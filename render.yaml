@@ -5,13 +5,7 @@ services:
   - type: web
     name: real-service-api
     env: node
-    buildCommand: |
-      # Install only the minimal required dependencies
-      npm install express cors http
-      # Create public directory for static assets
-      mkdir -p public
-      # Copy any pre-built client assets if available
-      cp -r client/dist/* public/ 2>/dev/null || echo "No client assets found"
+    buildCommand: ./render-build.sh
     startCommand: NODE_ENV=production node pure-production-server.js
     healthCheckPath: /healthz
     envVars:
