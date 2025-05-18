@@ -3,65 +3,64 @@
  * This script starts the server in production mode
  */
 
-require('dotenv').config({ path: '.env.production' });
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
-console.log('Starting Real Service API in production mode...');
-console.log('Environment: ', process.env.NODE_ENV);
-// Always set PORT environment variable to 5000 to match workflow configuration
-process.env.PORT = process.env.PORT || '5000';
-console.log('Port: ', process.env.PORT);
-console.log('Database: ', process.env.DATABASE_URL ? 'Connected' : 'Not configured');
-console.log('CORS Origin: ', process.env.CORS_ORIGIN || 'Any');
+// Check for server file at various possible locations
+const possibleServerPaths = [
+  './dist/index.js',
+  './dist/server/index.js',
+  './deploy-pure-final/index.js'
+];
 
-// Try to connect to the database before starting the server
-// This way we fail fast if the database connection isn't working
-async function checkDatabase() {
-  try {
-    console.log('Validating database connection...');
-    
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false // Required for Neon database
+async function checkServerFile() {
+  for (const serverPath of possibleServerPaths) {
+    try {
+      if (fs.existsSync(serverPath)) {
+        console.log(`Found server file at: ${serverPath}`);
+        return serverPath;
       }
-    });
-    
-    // Test the connection
-    const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
-    client.release();
-    
-    console.log('Database connection successful, timestamp:', result.rows[0].now);
-    return true;
-  } catch (error) {
-    console.error('Database connection failed:', error.message);
-    return false;
+    } catch (error) {
+      console.error(`Error checking ${serverPath}:`, error);
+    }
   }
+  return null;
 }
 
-// Start the server if database is connected
 async function startServer() {
-  const dbConnected = await checkDatabase();
-  
-  if (!dbConnected) {
-    console.error('Failed to connect to database, exiting...');
-    process.exit(1);
-  }
-  
-  // We can now safely start the server
-  console.log('Starting server...');
-  
   try {
-    // Load the server with the production flag
+    console.log('Starting production server...');
+    
+    // Find the server file
+    const serverPath = await checkServerFile();
+    
+    if (!serverPath) {
+      console.error('No server file found! Checking for pure server backup...');
+      
+      // If we can't find the compiled file, try to use the pure JS version as fallback
+      if (fs.existsSync('./pure-production-server.js')) {
+        console.log('Found pure production server, using as fallback');
+        process.env.NODE_ENV = 'production';
+        import('./pure-production-server.js');
+        return;
+      }
+      
+      throw new Error('No server file found at any of the expected locations');
+    }
+    
+    // Start the server with the correct file
+    console.log(`Starting server with: ${serverPath}`);
     process.env.NODE_ENV = 'production';
-    require('./server/index.js');
-    console.log('Server started successfully!');
+    
+    // Use dynamic import for ESM compatibility
+    const serverModule = await import(serverPath);
+    
+    console.log('Server started successfully');
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
   }
 }
 
-// Run the startup sequence
 startServer();

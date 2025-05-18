@@ -1,33 +1,21 @@
-# Real Service API - Render.com Deployment Configuration
-
 services:
   # Main API server
   - type: web
     name: real-service-api
     env: node
-    buildCommand: ./render-build.sh
-    startCommand: NODE_ENV=production node ./pure-production-server.js
+    buildCommand: npm ci && npm run build
+    startCommand: node start-production.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000
       - key: DATABASE_URL
         fromDatabase:
           name: real-service-db
           property: connectionString
-      - key: SESSION_SECRET
-        generateValue: true
-      - key: JWT_SECRET
-        generateValue: true
-      - key: VITE_MAPBOX_TOKEN
-        sync: false
-    autoDeploy: false # Disable auto-deploy to ensure proper testing
+      - key: PORT
+        value: 10000
 
 databases:
-  # PostgreSQL database
   - name: real-service-db
-    plan: standard
-
-# Additional environment variables can be set in the Render dashboard
+    plan: starter
