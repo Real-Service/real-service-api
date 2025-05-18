@@ -363,9 +363,17 @@ app.use((req, res, next) => {
   // Register API routes
   const server = await registerRoutes(app);
   
-  // For production, serve static files
-  // For development in Replit, serve our dashboard for testing
-  app.use(express.static('public'));
+  // Only serve static files in production
+  if (process.env.NODE_ENV === 'production') {
+    serveStaticProd(app);
+  } else {
+    // In development, setup vite for the React frontend
+    try {
+      await setupVite(app, server);
+    } catch (err) {
+      console.error("Failed to setup Vite:", err);
+    }
+  }
 
   // 1. Catch 404 for unmatched API routes only
   app.use('/api/*', (req: Request, res: Response) => {
