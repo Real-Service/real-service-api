@@ -3,7 +3,7 @@ services:
   - type: web
     name: real-service-api
     env: node
-    buildCommand: npm ci && npm run build
+    buildCommand: ./render-build.sh
     startCommand: node dist/index.js
     healthCheckPath: /healthz
     envVars:

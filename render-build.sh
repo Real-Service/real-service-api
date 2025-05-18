@@ -41,13 +41,40 @@ chmod +x pure-production-server.js
 # Make sure we're pointing to the right server file
 echo "Creating proper file path reference..."
 mkdir -p dist
+
+# Run full build process to ensure files are generated
+npm ci && npm run build
+
+# Verify the file exists and create symlink or copy the file
 if [ -f "dist/server/index.js" ]; then
   echo "Found compiled server file at dist/server/index.js"
-  # Create a symlink or copy file to where Render expects it
-  ln -sf dist/server/index.js dist/index.js || cp dist/server/index.js dist/index.js
-  echo "Created file reference at dist/index.js"
+  
+  # Create a symlink from dist/index.js to dist/server/index.js
+  echo "Creating symlink from dist/index.js to dist/server/index.js"
+  rm -f dist/index.js # Remove if it exists
+  ln -sf ./server/index.js dist/index.js
+  
+  # As a fallback, copy the file if symlink fails
+  if [ ! -f "dist/index.js" ]; then
+    echo "Symlink failed, copying file instead"
+    cp dist/server/index.js dist/index.js
+  fi
+  
+  echo "Verified file exists at dist/index.js"
+  ls -la dist/index.js
 else
-  echo "Warning: Compiled server file not found at dist/server/index.js"
+  echo "WARNING: Compiled server file not found at dist/server/index.js"
+  echo "Checking for pure server implementation..."
+  
+  # If we can't find the compiled file, try to use the pure JS version as fallback
+  if [ -f "pure-production-server.js" ]; then
+    echo "Found pure production server, copying to dist/index.js"
+    cp pure-production-server.js dist/index.js
+    echo "Created dist/index.js from pure-production-server.js"
+  else
+    echo "ERROR: No server file found at any expected location"
+    exit 1
+  fi
 fi
 
 echo "Build completed successfully!"
