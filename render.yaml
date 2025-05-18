@@ -5,11 +5,11 @@ services:
   - type: web
     name: real-service-api
     env: node
-    # Use a starter script approach to bypass build and prepare the server manually
+    # Build using the Vite-free server entry point for production 
     buildCommand: |
       npm ci
       mkdir -p dist
-      npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+      npx esbuild server/server-prod.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
     startCommand: node dist/index.js
     healthCheckPath: /healthz
     envVars:
