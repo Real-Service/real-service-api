@@ -33,8 +33,8 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// CRITICAL: Use this exact format as shown in the screenshot
+// CRITICAL: Use exactly this format for Render.com port detection
 app.listen(PORT, () => {
-  // Using the exact format shown in the screenshot
-  console.log("✅ Server is running and listening on port " + PORT);
+  // The EXACT format Render is looking for
+  console.log("Server listening on port " + PORT);
 });
