@@ -1,97 +1,77 @@
-# Real Service API Deployment Guide
+# Deployment Guide for Real Service API
 
-This guide explains how to deploy the Real Service API to production using the configuration files and secrets provided.
+This guide outlines the deployment process for the Real Service API using Render.com or similar cloud platforms.
 
-## Files Provided
+## Prerequisites
 
-- **secrets.txt**: Contains all environment variables and secrets
-- **render.yaml.production**: Render deployment configuration
-- **.env.production.updated**: Updated environment file for production
+- GitHub account with access to the repository
+- Render.com account (or similar cloud platform)
+- PostgreSQL database (Neon Database recommended)
+- Required environment variables (see below)
 
-## Deployment to Render
+## Environment Variables
 
-### Option 1: Using the Dashboard (Recommended)
+Ensure these environment variables are set in your deployment platform:
 
-1. Log in to your [Render Dashboard](https://dashboard.render.com)
-2. Click "New" → "Web Service"
-3. Connect your GitHub repository
+```
+NODE_ENV=production
+PORT=5000
+DATABASE_URL=your_postgresql_connection_string
+SESSION_SECRET=your_session_secret
+CORS_ORIGIN=https://your-frontend-domain.com
+```
+
+## Deployment Steps
+
+### Option 1: Render.com Deployment
+
+1. Connect your GitHub repository to Render.com
+2. Create a new Web Service
+3. Select your repository
 4. Configure the service:
-   - Name: real-service-api
-   - Environment: Node.js
-   - Build Command: `npm ci`
-   - Start Command: `node start-production.js`
-5. Add Environment Variables:
-   - Copy all variables from `secrets.txt` or `.env.production.updated`
-   - Add each as a key-value pair in the Render dashboard
-6. Click "Create Web Service"
+   - Name: `real-service-api`
+   - Environment: `Node`
+   - Build Command: `./build.sh --install`
+   - Start Command: `node dist/index.js`
+   - Add all required environment variables
 
-### Option 2: Using Blueprint (render.yaml)
+### Option 2: Dockerfile Deployment
 
-1. Rename `render.yaml.production` to `render.yaml`
-2. Add it to your repository
-3. Push to GitHub
-4. Go to [Render Dashboard](https://dashboard.render.com/blueprints)
-5. Click "New Blueprint Instance"
-6. Select your repository
-7. Render will automatically configure and deploy your service
+If deploying to a container platform:
 
-## Deployment to Vercel
+1. Build the Docker image:
+   ```bash
+   docker build -t real-service-api .
+   ```
 
-1. Sign in to [Vercel](https://vercel.com)
-2. Click "Add New" → "Project"
-3. Import your GitHub repository
-4. Configure the project:
-   - Framework Preset: Other
-   - Build Command: `npm ci`
-   - Output Directory: (leave blank)
-   - Install Command: `npm install`
-   - Development Command: (leave blank)
-5. Add Environment Variables:
-   - Copy all variables from `secrets.txt` or `.env.production.updated`
-   - Add each as a key-value pair in the Vercel dashboard
-6. Click "Deploy"
-
-## Important Configuration Notes
-
-### Database Connection
-
-The database connection is configured to use Neon Postgres:
-```
-DATABASE_URL=postgresql://neondb_owner:npg_7hyG1JwXWmhm@ep-crimson-dust-a6smdy25.us-west-2.aws.neon.tech/neondb?sslmode=require
-```
-
-### CORS Configuration
-
-The CORS configuration is set up to allow requests from the Replit frontend:
-```
-CORS_ORIGIN=https://real-service-team9-01-teamleader2000.replit.app
-FRONTEND_URL=https://real-service-team9-01-teamleader2000.replit.app
-```
-
-If you deploy the frontend elsewhere, update these values.
-
-### Mapbox Token
-
-The Mapbox token is configured for maps functionality:
-```
-VITE_MAPBOX_TOKEN=pk.eyJ1IjoiZHJuewYzdXlzIjoidCI6MTUiOiJjaXJtNWlkcWIwMDB9LnF5bnhSTVBLMFtYWm1IQ18wbmE
-```
-
-## Testing the Deployment
-
-After deployment, test these endpoints:
-
-1. **Health Check**: `https://your-service.onrender.com/api/health`
-2. **Authentication**: `https://your-service.onrender.com/api/login` (POST request)
+2. Run the container:
+   ```bash
+   docker run -p 5000:5000 --env-file .env.production real-service-api
+   ```
 
 ## Troubleshooting
 
-- **Database Connection Issues**: Ensure the DATABASE_URL is correctly set
-- **CORS Errors**: Check CORS_ORIGIN matches your frontend URL
-- **Authentication Failures**: Verify SESSION_SECRET and COOKIE_SECRET are set
+### Connection Issues
 
-## Security Notes
+If you experience database connection issues:
 
-- Revoke and replace the GitHub PAT after use
-- Never commit `.env` files directly to your repository
-- Use Render's secret environment variables feature for sensitive data
+1. Verify your `DATABASE_URL` is correct and accessible from your deployment environment
+2. Check database SSL settings - Neon requires SSL with `rejectUnauthorized: false`
+3. Ensure your IP address is allowed in database firewall settings
+
+### Build Failures
+
+If the build process fails:
+
+1. Check the build logs for specific errors
+2. Ensure all dependencies are correctly listed in `package.json`
+3. Verify the build script has execute permissions with `chmod +x build.sh`
+
+## Health Check Endpoint
+
+The API provides health check endpoints at:
+- `/healthz` - Primary health check for Render.com
+- `/health` - Alternative health check
+- `/api/health` - API-specific health check
+
+These endpoints return status information about the application, including database connectivity.
