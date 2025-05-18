@@ -1,0 +1,17 @@
+{
+  "name": "real-service-production",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "ws": "^8.14.2"
+  },
+  "scripts": {
+    "start": "NODE_ENV=production node server.js"
+  }
+}

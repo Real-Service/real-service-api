@@ -5,15 +5,15 @@ services:
   - type: web
     name: real-service-api
     env: node
-    # Build using a pure JavaScript server with NO TypeScript or Vite dependencies
+    # Completely isolated deployment approach with no dependencies on project code
     buildCommand: |
-      # Use our minimal production package.json instead of the main one
-      cp production-package.json package.json
-      npm ci
-      mkdir -p public
-      # Copy static assets to the public folder (to be served by Express)
-      cp -r client/dist/* public/ || echo "No client build found, building server only"
-    startCommand: NODE_ENV=production node app.js
+      # Run our deployment script to create an isolated production build
+      bash ./deploy.sh
+      # Move to the isolated deployment directory
+      cd deploy
+      # Install only the minimal required dependencies
+      npm install
+    startCommand: cd deploy && NODE_ENV=production node server.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
