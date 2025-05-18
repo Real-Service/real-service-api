@@ -219,7 +219,9 @@ app.get('*', (req, res) => {
 
 // Create and start server
 const server = createServer(app);
-server.listen(port, () => {
-  console.log(`Pure production server running on port ${port}`);
+
+// Critical fix: Use app.listen properly and explicitly log the ACTUAL port number
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server listening on port ${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

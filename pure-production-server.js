@@ -163,7 +163,9 @@ app.get('*', (req, res) => {
 
 // Create and start server
 const server = createServer(app);
-server.listen(port, () => {
-  console.log(`Pure production server running on port ${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+// CRITICAL FIX: Use app.listen directly on the port Render provides
+// This is the exact format Render needs to detect the open port
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server listening on port ${port}`);
 });
