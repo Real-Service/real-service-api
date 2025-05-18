@@ -2,7 +2,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import cors from "cors";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 import { randomBytes } from "crypto";
 import { storage } from "./storage";
 import helmet from "helmet";
@@ -10,6 +9,27 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { authDb } from "./auth-db";
 import { Pool } from "pg";
+import path from "path";
+
+// Custom logger function to replace the one from vite.ts
+const log = (message: string) => {
+  const time = new Date().toLocaleTimeString();
+  console.log(`${time} [express] ${message}`);
+}
+
+// Static file serving function to replace the one from vite.ts
+const serveStatic = (app: express.Express) => {
+  const publicDir = path.join(process.cwd(), 'public');
+  app.use(express.static(publicDir));
+  
+  // For SPA routing, send index.html for non-API routes
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next(); // Skip for API routes
+    }
+    res.sendFile(path.join(publicDir, 'index.html'));
+  });
+};
 
 // Generate a random session secret if one isn't provided
 const SESSION_SECRET = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
@@ -346,12 +366,9 @@ app.use((req, res, next) => {
 
   const server = await registerRoutes(app);
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
+  // Only serve static files in production
+  // In development, we don't need this since the frontend is served by another process
+  if (app.get("env") !== "development") {
     serveStatic(app);
   }
 
