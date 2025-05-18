@@ -6,7 +6,7 @@ services:
     name: real-service-api
     env: node
     buildCommand: ./render-build.sh
-    startCommand: NODE_ENV=production node pure-production-server.js
+    startCommand: NODE_ENV=production node ./pure-production-server.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV

@@ -1,17 +1,15 @@
 {
-  "name": "real-service-standalone",
+  "name": "real-service-api-pure",
   "version": "1.0.0",
-  "description": "Standalone server with absolutely no Vite dependencies",
+  "description": "Pure production server for Real Service API",
   "type": "module",
   "main": "index.js",
-  "engines": {
-    "node": "20.x"
+  "scripts": {
+    "start": "node index.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "ws": "^8.14.2"
-  },
-  "scripts": {
-    "start": "NODE_ENV=production node index.js"
+    "pg": "^8.11.3"
   }
 }

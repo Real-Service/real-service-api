@@ -34,4 +34,12 @@ if [ ! -f "public/index.html" ]; then
 EOF
 fi
 
+# Ensure our pure server file is in the right place and executable
+echo "Ensuring pure production server file is available..."
+chmod +x pure-production-server.js
+
+# Skip any attempt to run the compiled server
+echo "Skipping default server startup approach..."
+echo "// This file is deliberately empty to prevent the default server from running" > dist/index.js 2>/dev/null || true
+
 echo "Build completed successfully!"
