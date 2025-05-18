@@ -5,7 +5,7 @@ services:
   - type: web
     name: real-service-api
     env: node
-    # Build using the Vite-free server entry point for production 
+    # Build using a completely standalone production server with NO dependencies on Vite
     buildCommand: |
       npm ci
       mkdir -p dist public
@@ -13,8 +13,8 @@ services:
       cp -r client/dist/* public/ || echo "No client build found, building server only"
       # Force-set production environment
       export NODE_ENV=production
-      # Build server with esbuild, excluding all Vite-related code
-      npx esbuild server/server-prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js
+      # Build server with esbuild, using our minimal production file with no Vite imports
+      npx esbuild server/production.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js
     startCommand: NODE_ENV=production node dist/index.js
     healthCheckPath: /healthz
     envVars:
