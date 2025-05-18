@@ -38,8 +38,16 @@ fi
 echo "Ensuring pure production server file is available..."
 chmod +x pure-production-server.js
 
-# Skip any attempt to run the compiled server
-echo "Skipping default server startup approach..."
-echo "// This file is deliberately empty to prevent the default server from running" > dist/index.js 2>/dev/null || true
+# Make sure we're pointing to the right server file
+echo "Creating proper file path reference..."
+mkdir -p dist
+if [ -f "dist/server/index.js" ]; then
+  echo "Found compiled server file at dist/server/index.js"
+  # Create a symlink or copy file to where Render expects it
+  ln -sf dist/server/index.js dist/index.js || cp dist/server/index.js dist/index.js
+  echo "Created file reference at dist/index.js"
+else
+  echo "Warning: Compiled server file not found at dist/server/index.js"
+fi
 
 echo "Build completed successfully!"
