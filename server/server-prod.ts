@@ -1,12 +1,13 @@
 /**
  * Production-only server entry point
- * This file doesn't import Vite at all, making it safe for production builds
+ * This file is completely isolated from Vite, making it safe for production builds
  */
 
 import express, { type Express, type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import cors from "cors";
-import { registerRoutes } from "./routes";
+// IMPORTANT: Create a production-specific routes
+import { registerRoutes } from "./routes-prod";
 import { randomBytes } from "crypto";
 import { storage } from "./storage";
 import helmet from "helmet";
