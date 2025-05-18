@@ -5,17 +5,15 @@ services:
   - type: web
     name: real-service-api
     env: node
-    # Build using a completely standalone production server with NO dependencies on Vite
+    # Build using a pure JavaScript server with NO TypeScript or Vite dependencies
     buildCommand: |
+      # Use our minimal production package.json instead of the main one
+      cp production-package.json package.json
       npm ci
-      mkdir -p dist public
+      mkdir -p public
       # Copy static assets to the public folder (to be served by Express)
       cp -r client/dist/* public/ || echo "No client build found, building server only"
-      # Force-set production environment
-      export NODE_ENV=production
-      # Build server with esbuild, using our minimal production file with no Vite imports
-      npx esbuild server/production.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js
-    startCommand: NODE_ENV=production node dist/index.js
+    startCommand: NODE_ENV=production node app.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
