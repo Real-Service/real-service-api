@@ -38,4 +38,4 @@ RUN adduser --system --uid 1001 appuser
 USER appuser
 
 # Start the server
-CMD ["npm", "run", "start"]
+CMD ["node", "dist/index.js"]
