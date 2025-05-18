@@ -13,8 +13,7 @@ services:
         fromDatabase:
           name: real-service-db
           property: connectionString
-      - key: PORT
-        value: 10000
+      # Removed hardcoded PORT - let Render assign it dynamically
 
 databases:
   - name: real-service-db
