@@ -399,7 +399,8 @@ app.use((req, res, next) => {
 
   // For development in Replit, always use port 5000 to match workflow configuration
   // For production, use process.env.PORT
-  const PORT = process.env.PORT || 5000;
+  // Always use port 5000 for Replit environment to match the workflow configuration
+  const PORT = 5000;
   server.listen({
     port: PORT,
     host: "0.0.0.0", // Bind to all network interfaces to ensure it's accessible
