@@ -363,16 +363,16 @@ app.use((req, res, next) => {
   // Register API routes
   const server = await registerRoutes(app);
   
-  // Only serve static files in production
-  if (process.env.NODE_ENV === 'production') {
+  // Always use setupVite, which will properly handle both
+  // development (HMR) and production static file serving
+  try {
+    await setupVite(app, server);
+    console.log("Successfully set up Vite integration.");
+  } catch (err) {
+    console.error("Failed to setup Vite:", err);
+    // Fallback to static file serving if Vite setup fails
+    console.log("Falling back to static file serving");
     serveStaticProd(app);
-  } else {
-    // In development, setup vite for the React frontend
-    try {
-      await setupVite(app, server);
-    } catch (err) {
-      console.error("Failed to setup Vite:", err);
-    }
   }
 
   // 1. Catch 404 for unmatched API routes only
