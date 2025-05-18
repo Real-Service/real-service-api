@@ -9,8 +9,11 @@ if [ "$1" == "--install" ]; then
   npm ci
 fi
 
-# Build the backend with esbuild only
+# Skip Vite build entirely and only run esbuild for server code
 echo "🔨 Compiling server with esbuild..."
 npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+# Ensure we have a dist directory and client assets directory
+mkdir -p dist/client
 
 echo "✅ Build completed successfully!"
