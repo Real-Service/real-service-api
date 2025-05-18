@@ -55,7 +55,7 @@ async function startServer() {
   try {
     // Load the server with the production flag
     process.env.NODE_ENV = 'production';
-    require('./dist/index.js');
+    require('./server/index.js');
     console.log('Server started successfully!');
   } catch (error) {
     console.error('Failed to start server:', error);

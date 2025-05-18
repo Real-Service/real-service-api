@@ -6,45 +6,11 @@
  */
 
 import { Request, Response } from 'express';
-import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
-import { promisify } from 'util';
+import { randomBytes } from 'crypto';
 import { Pool } from 'pg';
+import { comparePasswords } from './simple-auth';
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
-
-// Include password comparison logic directly to avoid dependency issues
-const scryptAsync = promisify(scrypt);
-
-// Self-contained password comparison function
-async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
-  try {
-    // Check if it's a bcrypt format password (starts with $2b$)
-    if (stored.startsWith('$2b$')) {
-      console.log('Using bcrypt for password comparison');
-      // Use bcrypt's compare function
-      const bcrypt = await import('bcrypt');
-      return await bcrypt.compare(supplied, stored);
-    }
-    
-    // Otherwise, process as our scrypt format
-    if (!stored || !stored.includes('.')) {
-      console.log('Invalid password format - not scrypt or bcrypt');
-      return false;
-    }
-    
-    const [hashed, salt] = stored.split(".");
-    const hashedBuf = Buffer.from(hashed, "hex");
-    
-    // Handle different hash lengths
-    const hashByteLength = hashedBuf.length;
-    const suppliedBuf = await scryptAsync(supplied, salt, hashByteLength);
-    
-    return timingSafeEqual(hashedBuf, suppliedBuf);
-  } catch (error) {
-    console.error('Password comparison error:', error.message);
-    return false;
-  }
-}
 
 // Define the login schema for validation
 const loginSchema = z.object({

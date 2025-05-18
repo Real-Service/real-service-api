@@ -1,16 +1,13 @@
 #!/usr/bin/env node
-/**
- * ULTRA MINIMAL PRODUCTION SERVER
- * No dependencies on ANY other files in the project
- * Completely standalone file that can be run directly
- */
+// STANDALONE PRODUCTION SERVER - NO VITE DEPENDENCIES
+// This file is completely independent and can be deployed on its own
 
 import express from 'express';
-import cors from 'cors';
-import { fileURLToPath } from 'url';
-import path from 'path';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import fs from 'fs';
 
 // Get directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -21,15 +18,13 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Basic middleware
-app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // Health check endpoint
 app.get('/healthz', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    timestamp: new Date().toISOString(),
-    message: 'Server is running in minimal production mode',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -37,14 +32,39 @@ app.get('/healthz', (req, res) => {
 app.get('/api/status', (req, res) => {
   res.status(200).json({
     status: 'online',
-    message: 'Production server is running in minimal mode',
+    message: 'Production server is running in standalone mode',
     environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// Serve static files from public directory
+// Serve static files
 const publicDir = path.join(__dirname, 'public');
-console.log(`Serving static files from: ${publicDir}`);
+// Create public dir if it doesn't exist
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+  // Create a basic index.html
+  fs.writeFileSync(path.join(publicDir, 'index.html'), `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Server Running</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+        h1 { color: #333; }
+        p { line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <h1>Server Running</h1>
+      <p>The standalone production server is running successfully.</p>
+      <p>API is available at <code>/api/*</code></p>
+    </body>
+    </html>
+  `);
+}
+
 app.use(express.static(publicDir));
 
 // For SPA routing - send the index.html for any non-API routes
@@ -71,13 +91,13 @@ wss.on('connection', (ws) => {
   
   ws.send(JSON.stringify({
     type: 'server_status',
-    message: 'Connected to minimal production server',
+    message: 'Connected to standalone server',
     timestamp: new Date().toISOString()
   }));
 });
 
 // Start the server
 server.listen(port, () => {
-  console.log(`Minimal production server running on port ${port}`);
+  console.log(`Standalone production server running on port ${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

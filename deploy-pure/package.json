@@ -1,0 +1,17 @@
+{
+  "name": "real-service-standalone",
+  "version": "1.0.0",
+  "description": "Standalone server with absolutely no Vite dependencies",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
+  },
+  "scripts": {
+    "start": "NODE_ENV=production node index.js"
+  }
+}
