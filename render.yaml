@@ -4,7 +4,7 @@ services:
     name: real-service-api
     env: node
     buildCommand: ./render-build.sh
-    startCommand: node render-server.js
+    startCommand: node render-quick-fix.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV

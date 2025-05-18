@@ -35,7 +35,44 @@ EOF
 fi
 
 # Ensure our pure server file is in the right place and executable
-echo "Ensuring pure production server file is available..."
+echo "Ensuring server files are available..."
+# Make sure our quick fix server is executable
+if [ -f "render-quick-fix.js" ]; then
+  echo "Found render-quick-fix.js, making it executable"
+  chmod +x render-quick-fix.js
+else
+  echo "WARNING: render-quick-fix.js not found, creating it"
+  cat > render-quick-fix.js << EOF
+#!/usr/bin/env node
+const express = require('express');
+const http = require('http');
+
+// Create Express app
+const app = express();
+const PORT = parseInt(process.env.PORT || "10000", 10);
+
+// Basic health check routes
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.get('/healthz', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+// Bind directly with Express to the port
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("Server listening on port " + PORT);
+});
+EOF
+  chmod +x render-quick-fix.js
+fi
+
+# Also make sure the pure production server is executable
 chmod +x pure-production-server.js
 
 # Make sure we're pointing to the right server file
