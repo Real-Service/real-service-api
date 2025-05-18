@@ -400,16 +400,10 @@ app.use((req, res, next) => {
     }
   });
 
-  // For development in Replit, use port 5000 to match workflow configuration
-  // For production on Render.com, use the dynamic port they assign via process.env.PORT
-  const PORT = process.env.NODE_ENV === 'production' ? process.env.PORT : 5000;
-  console.log(`Starting server on port: ${PORT} (NODE_ENV: ${process.env.NODE_ENV || 'development'})`);
+  // CRITICAL FIX: Use exact format as shown in screenshots
+  const PORT = process.env.PORT || 5000;
   
-  server.listen({
-    port: PORT,
-    host: "0.0.0.0", // Bind to all network interfaces to ensure it's accessible
-    reusePort: true,
-  }, () => {
-    log(`Server running on port ${PORT}`);
+  app.listen(PORT, () => {
+    console.log("✅ Server is running and listening on port " + PORT);
   });
 })();
