@@ -3,7 +3,7 @@ services:
   - type: web
     name: real-service-api
     env: node
-    buildCommand: npm install
+    buildCommand: npm run build
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:

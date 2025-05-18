@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Pure production server for Real Service API",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node index.js"
+    "build": "bash ./build.sh",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
