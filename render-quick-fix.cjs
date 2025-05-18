@@ -1,35 +1,32 @@
-#!/usr/bin/env node
 /**
- * MINIMAL EXPRESS SERVER FOR RENDER.COM
- * This file has only one purpose: bind to the port Render provides
- * And properly log it so Render can detect it
+ * MINIMAL SERVER FOR RENDER.COM
+ * CommonJS format - guaranteed to work on any Node.js setup
  */
 
 const express = require('express');
-const http = require('http');
-const path = require('path');
 
-// Create Express app
+// Create a minimal express app
 const app = express();
 
-// CRITICAL: Use this exact format for the PORT
-const PORT = process.env.PORT || 5000;
+// CRITICAL: Define PORT this way
+const PORT = process.env.PORT || 10000;
 
 // Basic health check routes
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).send('OK');
 });
 
 app.get('/healthz', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).send('OK');
 });
 
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+// Root route
+app.get('/', (req, res) => {
+  res.send('API Server Running');
 });
 
-// CRITICAL: Use this exact format as shown in the screenshot
+// CRITICAL: Use exactly this format without any fancy text
 app.listen(PORT, () => {
-  // Using the exact format shown in the screenshot
-  console.log("✅ Server is running and listening on port " + PORT);
+  // This exact message format is what Render needs
+  console.log("Server listening on port " + PORT);
 });

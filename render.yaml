@@ -6,6 +6,7 @@ services:
     buildCommand: ./render-build.sh
     startCommand: node render-quick-fix.js
     healthCheckPath: /healthz
+    plan: starter
     envVars:
       - key: NODE_ENV
         value: production

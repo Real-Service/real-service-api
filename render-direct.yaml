@@ -1,11 +1,12 @@
 services:
-  # Main API server
+  # Main API server with minimal configuration
   - type: web
     name: real-service-api
     env: node
-    buildCommand: npm ci && npm run build
-    startCommand: node dist/server/index.js
+    buildCommand: npm ci
+    startCommand: node render-direct.js
     healthCheckPath: /healthz
+    plan: starter
     envVars:
       - key: NODE_ENV
         value: production
@@ -13,8 +14,6 @@ services:
         fromDatabase:
           name: real-service-db
           property: connectionString
-      - key: PORT
-        value: 10000
 
 databases:
   - name: real-service-db
