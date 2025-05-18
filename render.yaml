@@ -3,8 +3,8 @@ services:
   - type: web
     name: real-service-api
     env: node
-    buildCommand: ./render-build.sh
-    startCommand: node render-quick-fix.js
+    buildCommand: npm ci
+    startCommand: node render-minimal.js
     healthCheckPath: /healthz
     plan: starter
     envVars:

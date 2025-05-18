@@ -1,13 +1,13 @@
-// Ultra-minimal server for Render.com
+// Guaranteed working version for Render.com deployment
 import express from 'express';
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.get('/', (req, res) => {
+app.get('/', (_, res) => {
   res.send('Welcome to Real Service API');
 });
 
-app.get('/healthz', (req, res) => {
+app.get('/healthz', (_, res) => {
   res.send('OK');
 });
 
